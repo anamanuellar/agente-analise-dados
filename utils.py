@@ -246,7 +246,7 @@ def plot_distribution(df, column):
     })
     
     st.session_state.agent_memory['generated_plots'].append({'analysis_type': 'distribution_analysis', 'figure': fig, 'column': column})
-    st.session_state.analysis_cache[cache_key] = fig
+    st.session_state.analysis_cache[cache_key] = (fig, conclusion)
     return fig, conclusion # Retorna a figura e a conclusão
 
 def plot_correlation_heatmap(df):
@@ -288,8 +288,14 @@ def plot_correlation_heatmap(df):
     
     if high_corr_pairs:
         top_corr = max(high_corr_pairs, key=lambda x: abs(x[2]))
-        conclusion += f"Maior correlação: {top_corr[0]} ↔ {top_corr[1]} ({top_corr[2]:.3f})"
+        conclusion += f"Maior correlação: {top_corr[0]} ↔ {top_corr[1]} ({top_corr[2]:.3f}). "
     
+    # Adicionando uma recomendação genérica
+    if len(high_corr_pairs) > 0 or len(moderate_corr_pairs) > 0:
+        conclusion += "Recomendação: Investigar pares de variáveis com alta/moderada correlação para entender suas interdependências."
+    else:
+        conclusion += "Recomendação: Baixa correlação geral pode indicar independência entre as variáveis ou a necessidade de análises mais complexas (ex: PCA)."
+
     add_to_memory("correlation_analysis", conclusion, {
         "high_correlations": len(high_corr_pairs),
         "moderate_correlations": len(moderate_corr_pairs),
@@ -369,7 +375,8 @@ def analyze_temporal_patterns(df, time_column):
 
     conclusion = f"Análise temporal de {len(df)} registros: período de {time_range:.0f} unidades, "
     conclusion += f"{temporal_pattern} {trend_desc}. "
-    conclusion += f"Tempo médio: {time_mean:.0f}, mediana: {time_median:.0f}"
+    conclusion += f"Tempo médio: {time_mean:.0f}, mediana: {time_median:.0f}. "
+    conclusion += "Recomendação: Investigar se há sazonalidade ou eventos específicos que influenciam a distribuição temporal."
 
     add_to_memory("temporal_analysis", conclusion, {
         "time_column": time_column,
@@ -454,8 +461,9 @@ def perform_clustering_analysis(df, n_clusters=None, sample_size=None):
     conclusion = f"Clustering K-means identificou {n_clusters} grupos com {quality_desc} "
     conclusion += f"(Silhouette: {silhouette_avg:.3f}). "
     conclusion += f"Maior cluster: {max(cluster_sizes)} pontos, menor: {min(cluster_sizes)} pontos. "
-    conclusion += f"Análise baseada em amostra de {actual_sample_size} registros"
-    
+    conclusion += f"Análise baseada em amostra de {actual_sample_size} registros. "
+    conclusion += f"Recomendação: Investigar as características de cada cluster para identificar segmentos distintos nos dados."
+
     add_to_memory("clustering_analysis", conclusion, {
         "n_clusters": n_clusters,
         "silhouette_score": float(silhouette_avg),
@@ -515,8 +523,16 @@ def detect_outliers(df, column):
     conclusion += f"Isolation Forest: {outlier_count_iso} ({outlier_count_iso/total_points*100:.1f}%), "
     conclusion += f"IQR: {outlier_count_iqr} ({outlier_count_iqr/total_points*100:.1f}%), "
     conclusion += f"Z-score: {outlier_count_zscore} ({outlier_count_zscore/total_points*100:.1f}%). "
-    conclusion += f"Consenso (≥2 métodos): {consensus_outliers} outliers"
+    conclusion += f"Consenso (≥2 métodos): {consensus_outliers} outliers. "
     
+    # Adicionando recomendação automática
+    if consensus_outliers / total_points > 0.05: # Se mais de 5% forem outliers por consenso
+        conclusion += "Recomendação: A alta incidência de outliers sugere a necessidade de investigar a fundo esses valores para entender suas causas e impacto, e considerar estratégias de tratamento ou remoção."
+    elif consensus_outliers > 0:
+        conclusion += "Recomendação: Existem outliers detectados. É aconselhável investigar esses valores para garantir a integridade dos dados e a robustez das análises futuras."
+    else:
+        conclusion += "Recomendação: Poucos ou nenhum outlier detectado, indicando uma distribuição de dados mais consistente."
+
     add_to_memory("outlier_detection", conclusion, {
         "column": column,
         "isolation_forest": outlier_count_iso,
@@ -556,9 +572,9 @@ def analyze_balance(df, column):
         conclusion += f"Valor {val}: {count:,} ({percentage:.2f}%); "
     
     if value_counts.min() / total_count < 0.10:
-        conclusion += "Dataset altamente desbalanceado."
+        conclusion += "Dataset altamente desbalanceado. Recomendação: Considerar técnicas de reamostragem (oversampling/undersampling) para balancear as classes antes da modelagem preditiva."
     else:
-        conclusion += "Dataset relativamente balanceado."
+        conclusion += "Dataset relativamente balanceado. Recomendação: As classes estão bem distribuídas, o que é favorável para a maioria dos modelos de machine learning."
     
     add_to_memory("balance_analysis", conclusion, {
         "column": column,
