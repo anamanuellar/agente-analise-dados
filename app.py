@@ -135,17 +135,17 @@ if uploaded_file is not None:
                 col_to_analyze = st.selectbox("Selecione a coluna para análise de distribuição:", df.select_dtypes(include=[np.number]).columns)
                 if col_to_analyze:
                     with st.spinner(f'Gerando distribuição para {col_to_analyze}...'):
-                        fig, conclusion = plot_distribution(df, col_to_analyze) # Agora retorna a figura e a conclusão
+                        fig, conclusion = plot_distribution(df, col_to_analyze)
                         st.pyplot(fig)
-                        st.info(conclusion) # Exibe a conclusão
+                        st.info(conclusion)
             
             elif analysis_type == 'correlation':
                 st.subheader("🔗 Análise de Correlação Avançada")
                 with st.spinner('Calculando matriz de correlação...'):
-                    fig, conclusion = plot_correlation_heatmap(df) # Agora retorna a figura e a conclusão
+                    fig, conclusion = plot_correlation_heatmap(df)
                     if fig:
                         st.pyplot(fig)
-                        st.info(conclusion) # Exibe a conclusão
+                        st.info(conclusion)
                     else:
                         st.error("❌ Necessário pelo menos 2 colunas numéricas para análise de correlação.")
             
@@ -167,8 +167,8 @@ if uploaded_file is not None:
                 st.subheader("🎯 Análise Avançada de Clustering")
                 if st.button("🎯 Executar Clustering Inteligente"):
                     with st.spinner('Executando análise de clustering...'):
-                        fig, conclusion = perform_clustering_analysis(df, sample_size=st.session_state.max_sample_size) # Agora retorna a conclusão
-                        st.info(conclusion) # Exibe a conclusão
+                        fig, conclusion = perform_clustering_analysis(df, sample_size=st.session_state.max_sample_size)
+                        st.info(conclusion)
             
             elif analysis_type == 'frequency':
                 st.subheader("📊 Análise de Valores Frequentes")
@@ -230,8 +230,8 @@ if uploaded_file is not None:
                 if col_to_analyze:
                     if st.button(f"Detectar Outliers em {col_to_analyze}"):
                         with st.spinner(f'Detectando outliers em {col_to_analyze}...'):
-                            fig, conclusion = detect_outliers(df, col_to_analyze) # Agora retorna a conclusão
-                            st.info(conclusion) # Exibe a conclusão
+                            fig, conclusion = detect_outliers(df, col_to_analyze)
+                            st.info(conclusion)
             
             elif analysis_type == 'balance':
                 st.subheader("⚖️ Análise de Balanceamento de Classes")
@@ -295,10 +295,10 @@ if uploaded_file is not None:
                 
                 elif analysis_type == "correlation":
                     with st.spinner('Calculando correlações...'):
-                        fig, conclusion = plot_correlation_heatmap(df) # Captura a conclusão
+                        fig, conclusion = plot_correlation_heatmap(df)
                         if fig:
                             st.pyplot(fig)
-                            st.info(conclusion) # Exibe a conclusão
+                            st.info(conclusion)
                         else:
                             st.error("Necessário pelo menos 2 colunas numéricas")
                 
@@ -306,7 +306,7 @@ if uploaded_file is not None:
                     time_cols = [col for col in df.columns if 'time' in col.lower() or 'date' in col.lower()]
                     if time_cols:
                         with st.spinner('Analisando padrões temporais...'):
-                            fig, message = analyze_temporal_patterns(df, time_cols[0]) # Usa a primeira coluna temporal encontrada
+                            fig, message = analyze_temporal_patterns(df, time_cols[0])
                             if fig:
                                 st.pyplot(fig)
                             st.info(message)
@@ -315,8 +315,8 @@ if uploaded_file is not None:
                 
                 elif analysis_type == "clustering":
                     with st.spinner('Executando clustering...'):
-                        fig, conclusion = perform_clustering_analysis(df, sample_size=st.session_state.max_sample_size) # Captura a conclusão
-                        st.info(conclusion) # Exibe a conclusão
+                        fig, conclusion = perform_clustering_analysis(df, sample_size=st.session_state.max_sample_size)
+                        st.info(conclusion)
                 
                 elif analysis_type == "frequency":
                     with st.spinner('Analisando frequências...'):
@@ -426,7 +426,7 @@ else:
 # Rodapé
 st.markdown("---")
 st.markdown("""
-<div style=\'text-align: center; color: #666; font-size: 14px;\'>
+<div style='text-align: center; color: #666; font-size: 14px;'>
 🤖 <strong>Agente Autônomo de Análise de Dados</strong>  
 
 Desenvolvido para o <strong>Desafio I2A2 Academy</strong> por Ana Manuella Ribeiro | Setembro 2025  
