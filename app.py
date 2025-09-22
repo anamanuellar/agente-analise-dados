@@ -343,16 +343,14 @@ if uploaded_file is not None:
         
         with col1:
             if st.button("📊 Executar Resumo Das Análises", help="Gera resumo completo de todas as análises", type="primary", use_container_width=True):
-                with st.spinner('Gerando resumo completo das análises...
-'):
+                with st.spinner('Gerando resumo completo das análises...'):
                     complete_summary = generate_complete_analysis_summary(df)
                     st.markdown(complete_summary)
         
         with col2:
             if st.button("📄 Gerar Relatório PDF Completo", help="Exporta relatório com dataset e análises", type="secondary", use_container_width=True):
                 if st.session_state.agent_memory['conclusions']:
-                    with st.spinner('Gerando relatório PDF completo...
-'):
+                    with st.spinner('Gerando relatório PDF completo...'):
                         try:
                             pdf_content = generate_pdf_report(df)
                             
