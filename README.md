@@ -22,6 +22,18 @@ agente-analise-dados/
 ├── requirements.txt   # Dependências
 └── README.md          # Documentação
 ```
+### 📂 Dataset
+
+Este projeto utiliza o dataset público **Credit Card Fraud Detection**, disponível no Kaggle:
+
+🔗 [Credit Card Fraud Detection - Kaggle](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud)
+
+⚠️ O arquivo `creditcard.csv` tem aproximadamente **147 MB**, e por isso não está incluído neste repositório.
+
+**Instruções para uso:**
+1. Baixe o arquivo `creditcard.csv` do Kaggle.
+2. Crie uma pasta chamada `data/` na raiz do projeto.
+3. Coloque o arquivo dentro dela
 
 ## 🛠️ Instalação local
 
