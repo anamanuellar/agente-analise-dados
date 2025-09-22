@@ -44,6 +44,11 @@ if 'agent_memory' not in st.session_state:
 if 'analysis_cache' not in st.session_state:
     st.session_state.analysis_cache = {}
 
+# Forçar reset do cache legado
+for key in list(st.session_state.analysis_cache.keys()):
+    if not isinstance(st.session_state.analysis_cache[key], tuple):
+        del st.session_state.analysis_cache[key]
+
 # Inicializar configurações avançadas se não existirem
 if 'max_sample_size' not in st.session_state:
     st.session_state.max_sample_size = 5000
@@ -428,3 +433,4 @@ Desenvolvido para o <strong>Desafio I2A2 Academy</strong> por Ana Manuella Ribei
 
 </div>
 """, unsafe_allow_html=True)
+
