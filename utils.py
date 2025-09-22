@@ -88,14 +88,6 @@ def generate_complete_analysis_summary(df):
 
 """
     
-    # Executar análises se ainda não foram feitas (usando cache)
-    # Nota: As funções de análise agora precisam de 'st.session_state.analysis_cache' e 'add_to_memory'
-    # que são globais no Streamlit, mas para utils.py, precisamos passá-las ou garantir que o Streamlit as gerencie.
-    # Para simplificar, as funções de análise ainda acessam st.session_state diretamente.
-    
-    # As funções de análise serão chamadas no app.py, e elas mesmas gerenciarão o cache e a memória.
-    # Este resumo apenas compila o que já está na memória.
-
     # Compilar todas as conclusões da memória
     for i, conclusion_entry in enumerate(st.session_state.agent_memory['conclusions'], 1):
         analysis_name = conclusion_entry['analysis_type'].replace('_', ' ').title()
@@ -255,7 +247,7 @@ def plot_distribution(df, column):
     
     st.session_state.agent_memory['generated_plots'].append({'analysis_type': 'distribution_analysis', 'figure': fig, 'column': column})
     st.session_state.analysis_cache[cache_key] = fig
-    return fig
+    return fig, conclusion # Retorna a figura e a conclusão
 
 def plot_correlation_heatmap(df):
     """Gera mapa de correlação aprimorado com análise de significância."""
@@ -266,7 +258,7 @@ def plot_correlation_heatmap(df):
     numeric_cols = df.select_dtypes(include=[np.number]).columns
     
     if len(numeric_cols) < 2:
-        return None
+        return None, "❌ Necessário pelo menos 2 colunas numéricas para clustering"
     
     fig, ax = plt.subplots(figsize=(16, 12))
     corr_matrix = df[numeric_cols].corr()
@@ -305,8 +297,8 @@ def plot_correlation_heatmap(df):
     })
     
     st.session_state.agent_memory['generated_plots'].append({'analysis_type': 'correlation_analysis', 'figure': fig})
-    st.session_state.analysis_cache[cache_key] = fig
-    return fig
+    st.session_state.analysis_cache[cache_key] = (fig, conclusion) # Cacheia a figura e a conclusão
+    return fig, conclusion # Retorna a figura e a conclusão
 
 def analyze_temporal_patterns(df, time_column):
     """Análise de padrões temporais aprimorada com detecção de tendências."""
@@ -737,3 +729,4 @@ def get_adaptive_suggestions(df):
     suggestions.append('• "Qual sua memória de análises?" - Consulta histórico de descobertas')
     
     return suggestions[:6] # Limitar a 6 sugestões
+
