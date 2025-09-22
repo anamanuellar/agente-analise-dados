@@ -40,7 +40,7 @@ Este projeto utiliza o dataset público **Credit Card Fraud Detection**, dispon�
 Clone o repositório:
 
 ```bash
-git clone https://github.com/seu-usuario/agente-analise-dados.git
+git clone https://github.com/anamanuellar/agente-analise-dados.git
 cd agente-analise-dados
 ```
 
