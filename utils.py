@@ -20,7 +20,7 @@ from typing import Dict, List, Any, Tuple
 class GeminiAgent:
     """Agente que USA Google Gemini como cérebro do sistema"""
     
-    def __init__(self, model_name="gemini-pro"):
+    def __init__(self, model_name="gemini-2.5-flash"):
         self.model_name = model_name
         self.model = None # Será inicializado após a API Key ser configurada
         self.conversation_history = []
@@ -633,3 +633,4 @@ def generate_pdf_report(df, agent: GeminiAgent):
     
     pdf_buffer.seek(0)
     return pdf_buffer.getvalue()
+
