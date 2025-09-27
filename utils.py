@@ -106,6 +106,27 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         prompt = f"""
         Analise este dataset CSV e forneça uma análise estruturada seguindo EXATAMENTE este formato:
 
+        INFORMAÇÕES ESTRUTURAIS:
+        - Linhas: {df.shape[0]:,}
+        - Colunas: {df.shape[1]}
+        - Memória: {df.memory_usage(deep=True).sum() / 1024**2:.1f} MB
+
+        TIPOS DE DADOS:
+        - Numéricas: {len(df.select_dtypes(include=[np.number]).columns)} colunas
+        - Categóricas: {len(df.select_dtypes(include=["object"]).columns)} colunas
+        - Dados faltantes: {df.isnull().sum().sum():,} valores
+
+        NOMES DAS COLUNAS:
+        {list(df.columns)}
+
+        AMOSTRA DOS DADOS (3 primeiras linhas):
+        {df.head(3).to_string()}
+
+        ESTATÍSTICAS BÁSICAS (colunas numéricas):
+        {df.select_dtypes(include=[np.number]).describe().to_string() if len(df.select_dtypes(include=[np.number]).columns) > 0 else "Nenhuma coluna numérica"}
+
+        Com base nessas informações, forneça uma análise estruturada seguindo EXATAMENTE este formato:
+
         ## IDENTIFICAÇÃO DO DOMÍNIO
         [Identifique que tipo de dataset é este: financeiro, marketing, fraude, vendas, saúde, etc.]
 
@@ -427,7 +448,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
             }
             
             # Adicionar uma linha para retornar a figura
-            # O Gemini deve gerar o 'fig' no final do código, então apenas avaliamos.
+            # O Gemini deve gerar o "fig" no final do código, então apenas avaliamos.
             fig = eval(code_to_execute, exec_globals)
             
             return {"status": "success", "figure": fig, "code_executed": code_to_execute}
@@ -633,4 +654,3 @@ def generate_pdf_report(df, agent: GeminiAgent):
     
     pdf_buffer.seek(0)
     return pdf_buffer.getvalue()
-
