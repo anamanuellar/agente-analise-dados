@@ -20,9 +20,9 @@ from typing import Dict, List, Any, Tuple
 class GeminiAgent:
     """Agente que USA Google Gemini como cérebro do sistema"""
     
-    def __init__(self, model_name="gemini-2.5-flash"):
+    def __init__(self, model_name="gemini-pro"):
         self.model_name = model_name
-        self.model = None 
+        self.model = None # Será inicializado após a API Key ser configurada
         self.conversation_history = []
         self.dataset_context = {}
         
@@ -104,28 +104,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         Analise datasets CSV e forneça insights profissionais, práticos e actionables."""
         
         prompt = f"""
-        Analise este dataset CSV e forneça uma análise estruturada:
-
-        INFORMAÇÕES ESTRUTURAIS:
-        - Linhas: {df.shape[0]:,}
-        - Colunas: {df.shape[1]}
-        - Memória: {df.memory_usage(deep=True).sum() / 1024**2:.1f} MB
-
-        TIPOS DE DADOS:
-        - Numéricas: {len(df.select_dtypes(include=[np.number]).columns)} colunas
-        - Categóricas: {len(df.select_dtypes(include=["object"]).columns)} colunas
-        - Dados faltantes: {df.isnull().sum().sum():,} valores
-
-        NOMES DAS COLUNAS:
-        {list(df.columns)}
-
-        AMOSTRA DOS DADOS (3 primeiras linhas):
-        {df.head(3).to_string()}
-
-        ESTATÍSTICAS BÁSICAS (colunas numéricas):
-        {df.select_dtypes(include=[np.number]).describe().to_string() if len(df.select_dtypes(include=[np.number]).columns) > 0 else "Nenhuma coluna numérica"}
-
-        Com base nessas informações, forneça uma análise estruturada seguindo EXATAMENTE este formato:
+        Analise este dataset CSV e forneça uma análise estruturada seguindo EXATAMENTE este formato:
 
         ## IDENTIFICAÇÃO DO DOMÍNIO
         [Identifique que tipo de dataset é este: financeiro, marketing, fraude, vendas, saúde, etc.]
@@ -398,7 +377,10 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         visualization_type = plan.get("visualization_type")
         columns = plan.get("columns_to_use")
         
-        system_context = """Você é um especialista em visualização de dados com Python. Gere o código para criar o gráfico solicitado."""
+        system_context = """Você é um especialista em visualização de dados com Python. Gere o código para criar o gráfico solicitado. O código deve ser completo, funcional e retornar a figura (objeto `fig`). Não inclua `plt.show()` ou `fig.show()`.
+        Certifique-se de que o código Python gerado é sintaticamente correto e pode ser executado diretamente.
+        Use `plt.tight_layout()` para evitar sobreposição.
+        """
         
         prompt = f"""
         **Plano de Visualização:**
@@ -411,7 +393,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         1. Criar uma figura e um eixo (`fig, ax = plt.subplots()`)
         2. Gerar o gráfico solicitado no eixo `ax`.
         3. Incluir título e rótulos dos eixos.
-        4. Retornar a figura (`fig`).
+        4. **Retornar a figura (`fig`) como a última linha do código.**
         5. Use `plt.tight_layout()` para evitar sobreposição.
 
         **Exemplo de Código para `histogram`:**
@@ -451,6 +433,8 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
             return {"status": "success", "figure": fig, "code_executed": code_to_execute}
             
         except Exception as e:
+            st.error(f"Erro ao gerar visualização: {e}")
+            st.code(code_to_execute, language="python") # Mostrar o código gerado para depuração
             return {"status": "error", "error_message": str(e), "code_executed": code_to_execute}
 
     def _extract_section(self, text: str, start_marker: str, end_marker: str) -> str:
@@ -649,5 +633,3 @@ def generate_pdf_report(df, agent: GeminiAgent):
     
     pdf_buffer.seek(0)
     return pdf_buffer.getvalue()
-
-
