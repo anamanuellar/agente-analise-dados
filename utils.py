@@ -9,47 +9,538 @@ from sklearn.metrics import silhouette_score
 import io
 import json
 from datetime import datetime
-import plotly.express as px
-import plotly.graph_objects as go
-from matplotlib.backends.backend_pdf import PdfPages
 import base64
 import re
-import streamlit as st # Necessário para st.session_state
+import streamlit as st
+import google.generativeai as genai
+from typing import Dict, List, Any, Tuple
 
-# --- FUNÇÕES DE GERENCIAMENTO DE MEMÓRIA E CACHE ---
+# === CLASSE PRINCIPAL: GEMINI AGENT ===
 
-def add_to_memory(analysis_type, conclusion, data_info=None, plot_data=None):
-    """Adiciona conclusão à memória do agente com timestamp e metadados."""
-    memory_entry = {
-        'timestamp': datetime.now().isoformat(),
-        'analysis_type': analysis_type,
-        'conclusion': conclusion,
-        'data_info': data_info or {}
-    }
+class GeminiAgent:
+    """Agente que USA Google Gemini como cérebro do sistema"""
     
-    st.session_state.agent_memory['conclusions'].append(memory_entry)
-    st.session_state.agent_memory['analysis_history'].append(analysis_type)
+    def __init__(self, model_name="gemini-pro"):
+        self.model_name = model_name
+        self.model = None # Será inicializado após a API Key ser configurada
+        self.conversation_history = []
+        self.dataset_context = {}
+        
+        # Configurações de segurança do Gemini
+        self.safety_settings = [
+            {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+                "category": "HARM_CATEGORY_HATE_SPEECH", 
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            }
+        ]
+        
+        # Configurações de geração
+        self.generation_config = {
+            "temperature": 0.3,
+            "top_p": 0.8,
+            "top_k": 40,
+            "max_output_tokens": 4000,
+        }
     
-    if plot_data:
-        st.session_state.agent_memory['generated_plots'].append(plot_data)
+    def configure_gemini(self, api_key: str):
+        """Configura o Gemini com a API Key fornecida."""
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel(
+            self.model_name,
+            safety_settings=self.safety_settings,
+            generation_config=self.generation_config
+        )
 
-def get_memory_summary():
-    """Retorna resumo inteligente da memória do agente."""
-    memory = st.session_state.agent_memory
-    if not memory['conclusions']:
-        return "🤖 **Agente iniciado.** Nenhuma análise realizada ainda."
+    def _call_gemini(self, prompt: str, system_context: str = "") -> str:
+        """Chama o Google Gemini para análise"""
+        if not self.model:
+            return self._fallback_response("Gemini não configurado. Por favor, forneça a API Key.")
+
+        try:
+            # Combinar contexto do sistema com o prompt
+            full_prompt = f"{system_context}\n\n{prompt}" if system_context else prompt
+            
+            response = self.model.generate_content(
+                full_prompt
+            )
+            
+            return response.text
+            
+        except Exception as e:
+            st.error(f"Erro no Gemini: {e}")
+            return self._fallback_response(prompt)
     
-    summary = f"🧠 **Resumo da Memória do Agente:**\n\n"
-    summary += f"- **Total de análises:** {len(memory['conclusions'])}\n"
-    summary += f"- **Tipos realizados:** {', '.join(set(memory['analysis_history']))}\n"
-    summary += f"- **Última análise:** {memory['conclusions'][-1]['analysis_type']}\n"
-    summary += f"- **Período de atividade:** {len(set([c['timestamp'][:10] for c in memory['conclusions']]))} dia(s)\n\n"
+    def _fallback_response(self, prompt: str) -> str:
+        """Resposta de fallback quando Gemini falha"""
+        return f"""
+**[Modo Fallback - Gemini Temporariamente Indisponível]**
+
+Recebi sua pergunta: "{prompt}"
+
+Esta é uma resposta de fallback. Para análise completa com IA:
+1. Verifique sua API key do Gemini
+2. Confirme conexão com internet
+3. Tente novamente em alguns instantes
+
+As funcionalidades básicas de análise continuam funcionando normalmente.
+        """
     
-    summary += "📊 **Principais Descobertas:**\n"
-    for i, conclusion in enumerate(memory['conclusions'][-5:], 1):
-        summary += f"{i}. **{conclusion['analysis_type'].title()}:** {conclusion['conclusion']}\n"
+    def analyze_dataset_initially(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """Análise inicial inteligente do dataset usando Gemini"""
+        
+        system_context = """Você é um especialista sênior em análise de dados com PhD em Estatística e vasta experiência em Business Intelligence. 
+        Analise datasets CSV e forneça insights profissionais, práticos e actionables."""
+        
+        prompt = f"""
+        Analise este dataset CSV e forneça uma análise estruturada:
+
+        INFORMAÇÕES ESTRUTURAIS:
+        - Linhas: {df.shape[0]:,}
+        - Colunas: {df.shape[1]}
+        - Memória: {df.memory_usage(deep=True).sum() / 1024**2:.1f} MB
+
+        TIPOS DE DADOS:
+        - Numéricas: {len(df.select_dtypes(include=[np.number]).columns)} colunas
+        - Categóricas: {len(df.select_dtypes(include=["object"]).columns)} colunas
+        - Dados faltantes: {df.isnull().sum().sum():,} valores
+
+        NOMES DAS COLUNAS:
+        {list(df.columns)}
+
+        AMOSTRA DOS DADOS (3 primeiras linhas):
+        {df.head(3).to_string()}
+
+        ESTATÍSTICAS BÁSICAS (colunas numéricas):
+        {df.select_dtypes(include=[np.number]).describe().to_string() if len(df.select_dtypes(include=[np.number]).columns) > 0 else "Nenhuma coluna numérica"}
+
+        Com base nessas informações, forneça uma análise estruturada seguindo EXATAMENTE este formato:
+
+        ## IDENTIFICAÇÃO DO DOMÍNIO
+        [Identifique que tipo de dataset é este: financeiro, marketing, fraude, vendas, saúde, etc.]
+
+        ## AVALIAÇÃO DE QUALIDADE
+        [Como você avalia a qualidade dos dados? Completude, consistência, etc.]
+
+        ## CARACTERÍSTICAS PRINCIPAIS
+        - [Característica 1: descrição]
+        - [Característica 2: descrição]
+        - [Característica 3: descrição]
+
+        ## ANÁLISES RECOMENDADAS
+        - [Análise 1: por que é importante]
+        - [Análise 2: por que é importante]
+        - [Análise 3: por que é importante]
+
+        ## INSIGHTS POTENCIAIS
+        - [Insight 1: o que pode ser descoberto]
+        - [Insight 2: o que pode ser descoberto]
+        - [Insight 3: o que pode ser descoberto]
+
+        Seja específico, técnico mas acessível, focando em valor de negócio.
+        """
+        
+        response = self._call_gemini(prompt, system_context)
+        
+        # Processar resposta estruturada
+        try:
+            dataset_type = self._extract_section(response, "IDENTIFICAÇÃO DO DOMÍNIO", "AVALIAÇÃO DE QUALIDADE")
+            data_quality = self._extract_section(response, "AVALIAÇÃO DE QUALIDADE", "CARACTERÍSTICAS PRINCIPAIS")
+            key_characteristics = self._extract_list_items(response, "CARACTERÍSTICAS PRINCIPAIS", "ANÁLISES RECOMENDADAS")
+            recommended_analyses = self._extract_list_items(response, "ANÁLISES RECOMENDADAS", "INSIGHTS POTENCIAIS")
+            potential_insights = self._extract_list_items(response, "INSIGHTS POTENCIAIS", None)
+            
+            analysis_result = {
+                "dataset_type": dataset_type.strip() or "Dataset genérico identificado",
+                "data_quality": data_quality.strip() or "Qualidade dos dados avaliada",
+                "key_characteristics": key_characteristics or ["Análise detalhada disponível"],
+                "recommended_analyses": recommended_analyses or ["Estatísticas descritivas", "Análise de correlação"],
+                "potential_insights": potential_insights or ["Converse com o agente para descobrir insights"],
+                "full_response": response
+            }
+            
+        except Exception as e:
+            # Fallback estruturado se parsing falhar
+            analysis_result = {
+                "dataset_type": "Dataset não classificado pelo Gemini",
+                "data_quality": "Avaliação detalhada disponível via chat",
+                "key_characteristics": ["Use o chat para análise detalhada"],
+                "recommended_analyses": ["Análise descritiva", "Correlações", "Detecção de outliers"],
+                "potential_insights": ["Converse com o Gemini para descobrir"],
+                "full_response": response
+            }
+        
+        # Salvar contexto para uso posterior
+        self.dataset_context = analysis_result
+        self._add_to_gemini_memory("initial_analysis", analysis_result)
+        
+        return analysis_result
     
-    return summary
+    def process_user_query(self, user_query: str, df: pd.DataFrame) -> Tuple[str, Dict]:
+        """Processa query do usuário usando Gemini para interpretação e execução"""
+        
+        # Adicionar à conversa
+        self.conversation_history.append({
+            "role": "user",
+            "content": user_query,
+            "timestamp": datetime.now()
+        })
+        
+        # **FASE 1: GEMINI INTERPRETA A QUERY E CRIA PLANO**
+        analysis_plan = self._gemini_create_analysis_plan(user_query, df)
+        
+        # **FASE 2: EXECUTAR ANÁLISE BASEADA NO PLANO**
+        analysis_results = self._execute_gemini_analysis_plan(analysis_plan, df)
+        
+        # **FASE 3: GEMINI GERA RESPOSTA FINAL**
+        final_response = self._gemini_generate_final_response(user_query, analysis_plan, analysis_results, df)
+        
+        # **FASE 4: CRIAR VISUALIZAÇÃO SE NECESSÁRIO**
+        visualization = self._create_visualization_if_needed(analysis_plan, df, analysis_results)
+        
+        # Adicionar à conversa e memória
+        self.conversation_history.append({
+            "role": "assistant",
+            "content": final_response,
+            "analysis_plan": analysis_plan,
+            "results": analysis_results,
+            "visualization": visualization,
+            "timestamp": datetime.now()
+        })
+        
+        self._add_to_gemini_memory("user_query", {
+            "query": user_query,
+            "response": final_response,
+            "plan": analysis_plan,
+            "results": analysis_results,
+            "visualization": visualization
+        })
+        
+        return final_response, visualization
+    
+    def _gemini_create_analysis_plan(self, user_query: str, df: pd.DataFrame) -> Dict:
+        """Gemini cria plano de análise estruturado"""
+        
+        system_context = """Você é um agente especialista em análise de dados. Interprete perguntas do usuário e crie planos estruturados de análise em formato JSON."""
+        
+        prompt = f"""
+        **Pergunta do Usuário:** "{user_query}"
+
+        **Contexto do Dataset:**
+        - Colunas disponíveis: {list(df.columns)}
+        - Colunas numéricas: {list(df.select_dtypes(include=[np.number]).columns)}
+        - Colunas categóricas: {list(df.select_dtypes(include=["object"]).columns)}
+
+        **Sua Tarefa:**
+        Crie um plano de análise em formato JSON para responder à pergunta do usuário. O JSON deve ter a seguinte estrutura:
+        {{
+            "analysis_type": "[tipo_da_analise]",
+            "columns_to_use": ["coluna1", "coluna2"],
+            "requires_visualization": [true/false],
+            "visualization_type": "[tipo_do_grafico]"
+        }}
+
+        **Tipos de Análise Válidos:**
+        - `descriptive_statistics`: Para perguntas sobre média, mediana, desvio padrão, etc.
+        - `correlation_matrix`: Para perguntas sobre correlação entre variáveis.
+        - `distribution_plot`: Para perguntas sobre a distribuição de uma variável (histograma).
+        - `outlier_detection`: Para perguntas sobre outliers ou valores atípicos.
+        - `clustering`: Para perguntas sobre agrupamentos ou segmentação.
+        - `frequency_analysis`: Para perguntas sobre valores mais/menos frequentes.
+        - `temporal_analysis`: Para perguntas sobre padrões temporais.
+        - `balance_analysis`: Para perguntas sobre balanceamento de classes.
+        - `general_query`: Para perguntas gerais que não se encaixam nas categorias acima.
+
+        **Tipos de Gráfico Válidos:**
+        - `histogram`: Para `distribution_plot`.
+        - `heatmap`: Para `correlation_matrix`.
+        - `boxplot`: Para `outlier_detection`.
+        - `scatterplot`: Para `clustering`.
+        - `pie_chart`: Para `balance_analysis`.
+        - `line_chart`: Para `temporal_analysis`.
+        - `bar_chart`: Para `frequency_analysis`.
+
+        **Exemplo de Resposta:**
+        {{
+            "analysis_type": "correlation_matrix",
+            "columns_to_use": {list(df.select_dtypes(include=[np.number]).columns)[:2]},
+            "requires_visualization": true,
+            "visualization_type": "heatmap"
+        }}
+
+        **Sua Resposta (apenas o JSON):**
+        """
+        
+        response = self._call_gemini(prompt, system_context)
+        
+        try:
+            # Limpar a resposta para garantir que seja um JSON válido
+            json_response = response.strip().replace("```json", "").replace("```", "").strip()
+            plan = json.loads(json_response)
+        except (json.JSONDecodeError, KeyError):
+            plan = {
+                "analysis_type": "general_query",
+                "columns_to_use": [],
+                "requires_visualization": False,
+                "visualization_type": "none"
+            }
+        
+        return plan
+
+    def _execute_gemini_analysis_plan(self, plan: Dict, df: pd.DataFrame) -> Dict:
+        """Executa o plano de análise gerando e executando código com Gemini."""
+        
+        analysis_type = plan.get("analysis_type", "general_query")
+        columns = plan.get("columns_to_use", [])
+        
+        system_context = """Você é um especialista em Python para análise de dados. Gere código Python para realizar a análise solicitada. O código deve ser completo, funcional e imprimir os resultados em formato de texto."""
+        
+        prompt = f"""
+        **Plano de Análise:**
+        - Tipo: {analysis_type}
+        - Colunas: {columns}
+
+        **Sua Tarefa:**
+        Gere o código Python completo para realizar esta análise no DataFrame `df`. O código deve:
+        1. Usar as bibliotecas `pandas`, `numpy`, `matplotlib`, `seaborn`, `sklearn`.
+        2. Realizar a análise solicitada nas colunas especificadas.
+        3. Imprimir os resultados da análise em formato de texto claro e informativo.
+        4. Não gere o código para criar gráficos, apenas a análise textual.
+        5. Se a análise for de clustering, use uma amostra de no máximo 5000 linhas para performance.
+        6. Se a análise for de outliers, use IsolationForest, IQR e Z-score.
+
+        **Exemplo de Código para `descriptive_statistics`:**
+        ```python
+        desc_stats = df["{columns[0]}"].describe()
+        print("Estatísticas Descritivas:\n", desc_stats)
+        ```
+
+        **Seu Código Python (apenas o código):**
+        """
+        
+        code_to_execute = self._call_gemini(prompt, system_context)
+        
+        # Limpar o código gerado
+        code_to_execute = code_to_execute.strip().replace("```python", "").replace("```", "").strip()
+        
+        # Executar o código dinamicamente
+        try:
+            # Capturar a saída do print
+            output_buffer = io.StringIO()
+            exec_globals = {
+                "df": df,
+                "pd": pd,
+                "np": np,
+                "plt": plt,
+                "sns": sns,
+                "StandardScaler": StandardScaler,
+                "IsolationForest": IsolationForest,
+                "KMeans": KMeans,
+                "silhouette_score": silhouette_score,
+                "print": lambda *args, **kwargs: print(*args, file=output_buffer, **kwargs)
+            }
+            
+            exec(code_to_execute, exec_globals)
+            
+            text_output = output_buffer.getvalue()
+            
+            return {"status": "success", "text_output": text_output, "code_executed": code_to_execute}
+            
+        except Exception as e:
+            return {"status": "error", "error_message": str(e), "code_executed": code_to_execute}
+
+    def _gemini_generate_final_response(self, user_query: str, plan: Dict, results: Dict, df: pd.DataFrame) -> str:
+        """Gera a resposta final em linguagem natural com base nos resultados."""
+        
+        system_context = """Você é um especialista em análise de dados apresentando resultados para um cliente. Seja claro, conciso e foque em insights de negócio."""
+        
+        prompt = f"""
+        **Pergunta do Cliente:** "{user_query}"
+
+        **Análise Realizada:**
+        - Tipo: {plan.get("analysis_type")}
+        - Colunas: {plan.get("columns_to_use")}
+
+        **Resultados da Análise:**
+        ```
+        {results.get("text_output")}
+        ```
+
+        **Sua Tarefa:**
+        Com base nos resultados, escreva uma resposta clara e informativa para o cliente. A resposta deve:
+        1. Explicar o que foi analisado.
+        2. Resumir os principais resultados.
+        3. Fornecer insights práticos e recomendações.
+        4. Usar linguagem acessível, evitando jargões técnicos excessivos.
+        
+        **Sua Resposta:**
+        """
+        
+        return self._call_gemini(prompt, system_context)
+
+    def _create_visualization_if_needed(self, plan: Dict, df: pd.DataFrame, analysis_results: Dict) -> Dict:
+        """Gera o código para a visualização e o executa."""
+        
+        if not plan.get("requires_visualization"): 
+            return None
+        
+        visualization_type = plan.get("visualization_type")
+        columns = plan.get("columns_to_use")
+        
+        system_context = """Você é um especialista em visualização de dados com Python. Gere o código para criar o gráfico solicitado."""
+        
+        prompt = f"""
+        **Plano de Visualização:**
+        - Tipo de Gráfico: {visualization_type}
+        - Colunas: {columns}
+        - Resultados da Análise Textual (para contexto): {analysis_results.get("text_output", "N/A")}
+
+        **Sua Tarefa:**
+        Gere o código Python completo para criar este gráfico usando `matplotlib` ou `seaborn`. O código deve:
+        1. Criar uma figura e um eixo (`fig, ax = plt.subplots()`)
+        2. Gerar o gráfico solicitado no eixo `ax`.
+        3. Incluir título e rótulos dos eixos.
+        4. Retornar a figura (`fig`).
+        5. Use `plt.tight_layout()` para evitar sobreposição.
+
+        **Exemplo de Código para `histogram`:**
+        ```python
+        fig, ax = plt.subplots()
+        sns.histplot(df["{columns[0]}"], kde=True, ax=ax)
+        ax.set_title("Distribuição de {columns[0]}")
+        fig
+        ```
+
+        **Seu Código Python (apenas o código):**
+        """
+        
+        code_to_execute = self._call_gemini(prompt, system_context)
+        
+        # Limpar o código gerado
+        code_to_execute = code_to_execute.strip().replace("```python", "").replace("```", "").strip()
+        
+        # Executar o código dinamicamente
+        try:
+            exec_globals = {
+                "df": df,
+                "pd": pd,
+                "np": np,
+                "plt": plt,
+                "sns": sns,
+                "StandardScaler": StandardScaler,
+                "IsolationForest": IsolationForest,
+                "KMeans": KMeans,
+                "silhouette_score": silhouette_score
+            }
+            
+            # Adicionar uma linha para retornar a figura
+            # O Gemini deve gerar o 'fig' no final do código, então apenas avaliamos.
+            fig = eval(code_to_execute, exec_globals)
+            
+            return {"status": "success", "figure": fig, "code_executed": code_to_execute}
+            
+        except Exception as e:
+            return {"status": "error", "error_message": str(e), "code_executed": code_to_execute}
+
+    def _extract_section(self, text: str, start_marker: str, end_marker: str) -> str:
+        """Extrai seção de texto entre dois marcadores."""
+        try:
+            start_index = text.index(start_marker) + len(start_marker)
+            if end_marker:
+                end_index = text.index(end_marker, start_index)
+                return text[start_index:end_index].strip()
+            else:
+                return text[start_index:].strip()
+        except ValueError:
+            return ""
+
+    def _extract_list_items(self, text: str, start_marker: str, end_marker: str) -> List[str]:
+        """Extrai itens de lista de uma seção de texto."""
+        section = self._extract_section(text, start_marker, end_marker)
+        return [item.strip().lstrip("- ") for item in section.split("\n") if item.strip().startswith("-")]
+
+    def _add_to_gemini_memory(self, analysis_type: str, data: Dict):
+        """Adiciona análise à memória do agente Gemini."""
+        if "gemini_memory" not in st.session_state:
+            st.session_state.gemini_memory = []
+        
+        st.session_state.gemini_memory.append({
+            "type": analysis_type,
+            "data": data,
+            "timestamp": datetime.now()
+        })
+
+    def get_full_memory_summary(self) -> str:
+        """Gera um resumo completo de todas as interações e análises na memória do Gemini."""
+        summary_text = """
+🤖 **RESUMO COMPLETO DAS ANÁLISES - AGENTE AUTÔNOMO COM GEMINI**
+
+"""
+        if not st.session_state.gemini_memory:
+            return summary_text + "Nenhuma análise realizada ainda."
+
+        for i, entry in enumerate(st.session_state.gemini_memory):
+            summary_text += f"\n--- **Análise {i+1}: {entry["type"].replace("_", " ").title()}** ---\n"
+            summary_text += f"**Timestamp:** {entry["timestamp"].strftime("%Y-%m-%d %H:%M:%S")}\n"
+            
+            if entry["type"] == "initial_analysis":
+                summary_text += f"**Análise Inicial do Dataset:**\n{entry["data"]["full_response"]}\n"
+            elif entry["type"] == "user_query":
+                summary_text += f"**Pergunta do Usuário:** {entry["data"]["query"]}\n"
+                summary_text += f"**Plano de Análise:** {json.dumps(entry["data"]["plan"], indent=2)}\n"
+                summary_text += f"**Resultados da Execução:**\n```\n{entry["data"]["results"]["text_output"]}\n```\n"
+                summary_text += f"**Resposta Final do Gemini:**\n{entry["data"]["response"]}\n"
+            
+        return summary_text
+
+    def generate_smart_suggestions(self, df: pd.DataFrame) -> List[str]:
+        """Gera sugestões inteligentes baseadas no dataset usando LLM"""
+        
+        system_context = """Você é um especialista em análise de dados. Gere 5-6 sugestões específicas e práticas de perguntas que o usuário pode fazer sobre seus dados."""
+        
+        user_prompt = f"""
+        DATASET CONTEXT:
+        - Tipo: {self.dataset_context.get("dataset_type", "Genérico")}
+        - Shape: {df.shape[0]:,} linhas x {df.shape[1]} colunas
+        - Colunas numéricas: {list(df.select_dtypes(include=[np.number]).columns)[:8]}
+        - Colunas categóricas: {list(df.select_dtypes(include=["object"]).columns)[:8]}
+        
+        ANÁLISES JÁ REALIZADAS:
+        {len(self.conversation_history)} interações anteriores
+        
+        Gere 5-6 sugestões específicas de perguntas que seriam valiosas para este dataset.
+        Formato: "Pergunta específica e clara"
+        
+        Exemplo de formato:
+        - "Quais são as correlações mais fortes entre as variáveis numéricas?"
+        - "Existem outliers significativos na coluna Amount?"
+        """
+        
+        response = self._call_gemini(user_prompt, system_context)
+        
+        # Extrair sugestões da resposta
+        suggestions = []
+        for line in response.split("\n"):
+            line = line.strip()
+            if line.startswith("-") or line.startswith("•") or line.startswith("*"):
+                suggestion = line[1:].strip().strip("\"")
+                if suggestion:
+                    suggestions.append(suggestion)
+        
+        return suggestions[:6]
+
+# --- FUNÇÕES AUXILIARES (fora da classe, para compatibilidade com Streamlit) ---
 
 def get_dataset_info(df):
     """Retorna informações descritivas completas do dataset."""
@@ -68,8 +559,8 @@ def get_dataset_info(df):
 
 **Tipos de Colunas:**
 - Numéricas: {len(df.select_dtypes(include=[np.number]).columns)}
-- Categóricas: {len(df.select_dtypes(include=['object', 'category']).columns)}
-- Datetime: {len(df.select_dtypes(include=['datetime']).columns)}
+- Categóricas: {len(df.select_dtypes(include=["object", "category"]).columns)}
+- Datetime: {len(df.select_dtypes(include=["datetime"]).columns)}
 
 **Estatísticas Gerais:**
 - Densidade de dados: {(df.count().sum() / (df.shape[0] * df.shape[1]) * 100):.1f}%
@@ -77,672 +568,84 @@ def get_dataset_info(df):
 """
     return info
 
-def generate_complete_analysis_summary(df):
-    """Gera resumo completo de todas as análises realizadas, garantindo que não haja repetições."""
-    summary_text = f"""
-🤖 **RESUMO COMPLETO DAS ANÁLISES - AGENTE AUTÔNOMO**
-
-{get_dataset_info(df)}
-
-📈 **ANÁLISES REALIZADAS:**
-
-"""
-    
-    # Compilar todas as conclusões da memória
-    for i, conclusion_entry in enumerate(st.session_state.agent_memory['conclusions'], 1):
-        analysis_name = conclusion_entry['analysis_type'].replace('_', ' ').title()
-        summary_text += f"\n**{i}. {analysis_name}:**\n"
-        summary_text += f"   {conclusion_entry['conclusion']}\n"
-        summary_text += f"   *Realizada em: {conclusion_entry['timestamp'][:19]}*\n"
-    
-    summary_text += f"""
-
-🎯 **INSIGHTS PRINCIPAIS:**
-
-1. **Qualidade dos Dados:** Dataset com {df.shape[0]:,} registros e {df.shape[1]} variáveis, apresentando {((df.shape[0] * df.shape[1] - df.isnull().sum().sum()) / (df.shape[0] * df.shape[1]) * 100):.1f}% de completude.
-
-2. **Estrutura:** Composto por {len(df.select_dtypes(include=[np.number]).columns)} variáveis numéricas e {len(df.select_dtypes(include=['object', 'category']).columns)} categóricas.
-
-3. **Padrões Identificados:** {len(st.session_state.agent_memory['conclusions'])} análises diferentes foram executadas, revelando padrões em distribuições, correlações e agrupamentos.
-
-4. **Recomendações:** Com base nas análises realizadas, o dataset apresenta características adequadas para modelagem preditiva e análise exploratória avançada.
-
-📊 **TOTAL DE ANÁLISES EXECUTADAS:** {len(st.session_state.agent_memory['conclusions'])}
-🕐 **GERADO EM:** {datetime.now().strftime("%d/%m/%Y às %H:%M:%S")}
-
----
-🤖 **Agente Autônomo de Análise de Dados - I2A2 Academy 2025**
-"""
-    
-    return summary_text
-
-# --- FUNÇÕES DE ANÁLISE DE DADOS ---
-
-def analyze_frequent_values(df, max_categories=10):
-    """Análise de valores mais/menos frequentes."""
-    cache_key = "frequency_analysis"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    categorical_cols = df.select_dtypes(include=['object', 'category']).columns
-    discrete_cols = [col for col in df.select_dtypes(include=['int64']).columns 
-                    if df[col].nunique() <= 20 and col not in categorical_cols]
-    
-    results = {}
-    conclusions = []
-    
-    for col in categorical_cols:
-        if df[col].nunique() <= max_categories:
-            value_counts = df[col].value_counts()
-            results[col] = {
-                'type': 'categorical',
-                'most_frequent': value_counts.head(3).to_dict(),
-                'least_frequent': value_counts.tail(3).to_dict(),
-                'unique_count': df[col].nunique(),
-                'null_count': df[col].isnull().sum()
-            }
-            
-            most_freq_val = value_counts.index[0]
-            most_freq_count = value_counts.iloc[0]
-            conclusions.append(f"Coluna '{col}': valor mais frequente é '{most_freq_val}' ({most_freq_count} ocorrências)")
-    
-    for col in discrete_cols:
-        value_counts = df[col].value_counts()
-        results[col] = {
-            'type': 'discrete',
-            'most_frequent': value_counts.head(3).to_dict(),
-            'least_frequent': value_counts.tail(3).to_dict(),
-            'unique_count': df[col].nunique(),
-            'null_count': df[col].isnull().sum()
-        }
-        
-        most_freq_val = value_counts.index[0]
-        most_freq_count = value_counts.iloc[0]
-        conclusions.append(f"Coluna '{col}': valor mais frequente é {most_freq_val} ({most_freq_count} ocorrências)")
-    
-    if conclusions:
-        conclusion_text = f"Análise de frequência: {len(results)} colunas analisadas. " + "; ".join(conclusions[:3])
-        add_to_memory("frequency_analysis", conclusion_text, {"analyzed_columns": len(results)})
-    
-    st.session_state.analysis_cache[cache_key] = results
-    return results
-
-def perform_descriptive_analysis(df):
-    """Análise descritiva aprimorada com insights automáticos."""
-    cache_key = "descriptive_analysis"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    desc_stats = df.describe()
-    
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    conclusions = []
-    
-    for col in numeric_cols[:5]: # Limitar para não sobrecarregar a memória
-        mean_val = df[col].mean()
-        std_val = df[col].std()
-        median_val = df[col].median()
-        
-        if std_val == 0: # Evitar divisão por zero
-            skew_desc = "constante"
-        elif abs(mean_val - median_val) > std_val * 0.5:
-            skew_desc = "distribuição assimétrica"
-        else:
-            skew_desc = "distribuição aproximadamente simétrica"
-            
-        conclusions.append(f"'{col}': {skew_desc}, média={mean_val:.2f}, mediana={median_val:.2f}")
-    
-    conclusion_text = f"Análise descritiva completa de {len(numeric_cols)} variáveis numéricas. " + "; ".join(conclusions[:3])
-    add_to_memory("descriptive_analysis", conclusion_text, {
-        "numeric_columns": len(numeric_cols),
-        "total_rows": len(df),
-        "total_columns": len(df.columns)
-    })
-    
-    st.session_state.analysis_cache[cache_key] = desc_stats
-    return desc_stats
-
-def plot_distribution(df, column):
-    """Gera histograma aprimorado com análise estatística detalhada."""
-    cache_key = f"distribution_analysis_{column}"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-    
-    sns.histplot(df[column], kde=True, ax=ax1)
-    ax1.set_title(f'Distribuição de {column}')
-    ax1.set_xlabel(column)
-    ax1.set_ylabel('Frequência')
-    ax1.grid(True, alpha=0.3)
-    
-    sns.boxplot(y=df[column], ax=ax2)
-    ax2.set_title(f'Box Plot - {column}')
-    ax2.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    
-    skewness = df[column].skew()
-    kurtosis = df[column].kurtosis()
-    q1, q3 = df[column].quantile([0.25, 0.75])
-    iqr = q3 - q1
-    outliers_count = len(df[(df[column] < q1 - 1.5*iqr) | (df[column] > q3 + 1.5*iqr)])
-    
-    if abs(skewness) > 1:
-        skew_desc = "altamente assimétrica"
-    elif abs(skewness) > 0.5:
-        skew_desc = "moderadamente assimétrica"
-    else:
-        skew_desc = "aproximadamente simétrica"
-    
-    conclusion = f"Distribuição de '{column}': {skew_desc} (skew={skewness:.2f}), "
-    conclusion += f"curtose={kurtosis:.2f}, {outliers_count} outliers detectados pelo método IQR"
-    
-    add_to_memory("distribution_analysis", conclusion, {
-        "column": column,
-        "skewness": float(skewness),
-        "kurtosis": float(kurtosis),
-        "outliers_iqr": int(outliers_count)
-    })
-    
-    st.session_state.agent_memory['generated_plots'].append({'analysis_type': 'distribution_analysis', 'figure': fig, 'column': column})
-    st.session_state.analysis_cache[cache_key] = (fig, conclusion)
-    return fig, conclusion # Retorna a figura e a conclusão
-
-def plot_correlation_heatmap(df):
-    """Gera mapa de correlação aprimorado com análise de significância."""
-    cache_key = "correlation_analysis"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    
-    if len(numeric_cols) < 2:
-        return None, "❌ Necessário pelo menos 2 colunas numéricas para clustering"
-    
-    fig, ax = plt.subplots(figsize=(16, 12))
-    corr_matrix = df[numeric_cols].corr()
-    mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
-    
-    sns.heatmap(corr_matrix, mask=mask, annot=False, cmap='RdBu_r', 
-                center=0, square=True, fmt='.2f', ax=ax,
-                cbar_kws={"shrink": .8})
-    ax.set_title('Matriz de Correlação - Análise Completa', fontsize=16, pad=20)
-    
-    high_corr_pairs = []
-    moderate_corr_pairs = []
-    
-    for i in range(len(corr_matrix.columns)):
-        for j in range(i+1, len(corr_matrix.columns)):
-            corr_val = corr_matrix.iloc[i, j]
-            col1, col2 = corr_matrix.columns[i], corr_matrix.columns[j]
-            
-            if abs(corr_val) > 0.7:
-                high_corr_pairs.append((col1, col2, corr_val))
-            elif abs(corr_val) > 0.5:
-                moderate_corr_pairs.append((col1, col2, corr_val))
-    
-    conclusion = f"Análise de correlação entre {len(numeric_cols)} variáveis: "
-    conclusion += f"{len(high_corr_pairs)} correlações altas (>0.7), "
-    conclusion += f"{len(moderate_corr_pairs)} correlações moderadas (0.5-0.7). "
-    
-    if high_corr_pairs:
-        top_corr = max(high_corr_pairs, key=lambda x: abs(x[2]))
-        conclusion += f"Maior correlação: {top_corr[0]} ↔ {top_corr[1]} ({top_corr[2]:.3f}). "
-    
-    # Adicionando uma recomendação genérica
-    if len(high_corr_pairs) > 0 or len(moderate_corr_pairs) > 0:
-        conclusion += "Recomendação: Investigar pares de variáveis com alta/moderada correlação para entender suas interdependências."
-    else:
-        conclusion += "Recomendação: Baixa correlação geral pode indicar independência entre as variáveis ou a necessidade de análises mais complexas (ex: PCA)."
-
-    add_to_memory("correlation_analysis", conclusion, {
-        "high_correlations": len(high_corr_pairs),
-        "moderate_correlations": len(moderate_corr_pairs),
-        "variables_analyzed": len(numeric_cols)
-    })
-    
-    st.session_state.agent_memory['generated_plots'].append({'analysis_type': 'correlation_analysis', 'figure': fig})
-    st.session_state.analysis_cache[cache_key] = (fig, conclusion) # Cacheia a figura e a conclusão
-    return fig, conclusion # Retorna a figura e a conclusão
-
-def analyze_temporal_patterns(df, time_column):
-    """Análise de padrões temporais aprimorada com detecção de tendências."""
-    cache_key = f"temporal_analysis_{time_column}"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    if time_column not in df.columns:
-        return None, "Coluna '{time_column}' não encontrada no dataset"
-    
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
-    
-    ax1.hist(df[time_column], bins=50, alpha=0.7, color='skyblue', edgecolor='black')
-    ax1.set_title(f'Distribuição Temporal - {time_column}')
-    ax1.set_xlabel('Tempo')
-    ax1.set_ylabel('Frequência')
-    ax1.grid(True, alpha=0.3)
-    
-    if 'Class' in df.columns: # Exemplo de adaptação para coluna 'Class'
-        for class_val in sorted(df['Class'].unique()):
-            subset = df[df['Class'] == class_val]
-            ax2.hist(subset[time_column], bins=30, alpha=0.6, 
-                    label=f'Classe {class_val} (n={len(subset)})')
-        ax2.set_title('Padrões Temporais por Classe')
-        ax2.set_xlabel('Tempo')
-        ax2.set_ylabel('Frequência')
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
-    else:
-        time_sorted = df.sort_values(time_column)
-        ax2.plot(time_sorted[time_column], range(len(time_sorted)), alpha=0.7, color='orange')
-        ax2.set_title('Tendência Temporal dos Dados')
-        ax2.set_xlabel('Tempo')
-        ax2.set_ylabel('Ordem dos Registros')
-        ax2.grid(True, alpha=0.3)
-
-    time_diffs = df[time_column].diff().dropna()
-    ax3.hist(time_diffs, bins=30, alpha=0.7, color='lightgreen', edgecolor='black')
-    ax3.set_title('Distribuição de Intervalos Temporais')
-    ax3.set_xlabel('Diferença de Tempo')
-    ax3.set_ylabel('Frequência')
-    ax3.grid(True, alpha=0.3)
-
-    ax4.boxplot(df[time_column])
-    ax4.set_title(f'Box Plot - {time_column}')
-    ax4.set_ylabel('Tempo')
-    ax4.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-
-    time_range = df[time_column].max() - df[time_column].min()
-    time_mean = df[time_column].mean()
-    time_std = df[time_column].std()
-    time_median = df[time_column].median()
-    concentration_ratio = time_std / time_mean if time_mean != 0 else 0
-
-    if concentration_ratio < 0.3:
-        temporal_pattern = "dados altamente concentrados temporalmente"
-    elif concentration_ratio < 0.7:
-        temporal_pattern = "dados moderadamente distribuídos no tempo"
-    else:
-        temporal_pattern = "dados amplamente distribuídos ao longo do tempo"
-
-    if abs(time_mean - time_median) > time_std * 0.5:
-        trend_desc = "com tendência assimétrica"
-    else:
-        trend_desc = "com distribuição temporal equilibrada"
-
-    conclusion = f"Análise temporal de {len(df)} registros: período de {time_range:.0f} unidades, "
-    conclusion += f"{temporal_pattern} {trend_desc}. "
-    conclusion += f"Tempo médio: {time_mean:.0f}, mediana: {time_median:.0f}. "
-    conclusion += "Recomendação: Investigar se há sazonalidade ou eventos específicos que influenciam a distribuição temporal."
-
-    add_to_memory("temporal_analysis", conclusion, {
-        "time_column": time_column,
-        "time_range": float(time_range),
-        "time_mean": float(time_mean),
-        "concentration_ratio": float(concentration_ratio),
-        "records_analyzed": len(df)
-    })
-
-    st.session_state.agent_memory['generated_plots'].append({'analysis_type': 'temporal_analysis', 'figure': fig, 'column': time_column})
-    st.session_state.analysis_cache[cache_key] = (fig, conclusion)
-    return fig, conclusion
-
-def perform_clustering_analysis(df, n_clusters=None, sample_size=None):
-    """Análise de clustering aprimorada com otimização automática."""
-    cache_key = "clustering_analysis"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    if len(numeric_cols) < 2:
-        return None, "❌ Necessário pelo menos 2 colunas numéricas para clustering"
-    
-    if sample_size is None:
-        sample_size = st.session_state.max_sample_size # Usar o valor do slider
-    
-    actual_sample_size = min(sample_size, len(df))
-    
-    # Amostragem inteligente para datasets grandes
-    if len(df) > sample_size:
-        if 'Class' in df.columns and df['Class'].nunique() == 2: # Se for binário e desbalanceado
-            df_sample = df.groupby('Class', group_keys=False).apply(
-                lambda x: x.sample(min(len(x), sample_size // df['Class'].nunique()), random_state=42)
-            )
-        else:
-            df_sample = df.sample(n=actual_sample_size, random_state=42)
-    else:
-        df_sample = df
-    
-    df_numeric = df_sample[numeric_cols]
-    
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(df_numeric.fillna(df_numeric.mean()))
-    
-    if n_clusters is None:
-        silhouette_scores = []
-        K_range = range(2, min(11, len(df_sample)//50 + 2)) # Evitar muitos clusters para amostras pequenas
-        
-        if len(K_range) < 1: # Garantir que K_range não esteja vazio
-            return None, "❌ Amostra muito pequena para clustering significativo."
-
-        for k in K_range:
-            kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-            cluster_labels = kmeans.fit_predict(X_scaled)
-            silhouette_avg = silhouette_score(X_scaled, cluster_labels)
-            silhouette_scores.append(silhouette_avg)
-        
-        n_clusters = K_range[np.argmax(silhouette_scores)]
-        best_silhouette = max(silhouette_scores)
-    else:
-        best_silhouette = None
-    
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-    cluster_labels = kmeans.fit_predict(X_scaled)
-    
-    if best_silhouette is None:
-        silhouette_avg = silhouette_score(X_scaled, cluster_labels)
-    else:
-        silhouette_avg = best_silhouette
-    
-    cluster_sizes = [np.sum(cluster_labels == i) for i in range(n_clusters)]
-    
-    if silhouette_avg > 0.7:
-        quality_desc = "excelente separação"
-    elif silhouette_avg > 0.5:
-        quality_desc = "boa separação"
-    elif silhouette_avg > 0.3:
-        quality_desc = "separação moderada"
-    else:
-        quality_desc = "separação fraca"
-    
-    conclusion = f"Clustering K-means identificou {n_clusters} grupos com {quality_desc} "
-    conclusion += f"(Silhouette: {silhouette_avg:.3f}). "
-    conclusion += f"Maior cluster: {max(cluster_sizes)} pontos, menor: {min(cluster_sizes)} pontos. "
-    conclusion += f"Análise baseada em amostra de {actual_sample_size} registros. "
-    conclusion += f"Recomendação: Investigar as características de cada cluster para identificar segmentos distintos nos dados."
-
-    add_to_memory("clustering_analysis", conclusion, {
-        "n_clusters": n_clusters,
-        "silhouette_score": float(silhouette_avg),
-        "cluster_sizes": cluster_sizes,
-        "sample_size": actual_sample_size,
-        "quality_rating": quality_desc
-    })
-    
-    st.session_state.analysis_cache[cache_key] = (None, conclusion) # Cacheia o resultado da análise
-    return None, conclusion  # Retornando None para figura para simplificar
-
-def detect_outliers(df, column):
-    """Detecção de outliers aprimorada com múltiplos métodos."""
-    cache_key = f"outlier_detection_{column}"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    if column not in df.columns:
-        return None, f"❌ Coluna '{column}' não encontrada"
-    
-    data = df[[column]].dropna()
-    
-    if len(data) < 10: # Mínimo de dados para IsolationForest
-        return None, f"❌ Poucos dados na coluna '{column}' para detecção de outliers."
-
-    iso_forest = IsolationForest(contamination=st.session_state.contamination_rate, random_state=42)
-    outliers_iso = iso_forest.fit_predict(data)
-    
-    Q1 = data[column].quantile(0.25)
-    Q3 = data[column].quantile(0.75)
-    IQR = Q3 - Q1
-    outliers_iqr = (data[column] < (Q1 - 1.5 * IQR)) | (data[column] > (Q3 + 1.5 * IQR))
-    
-    z_scores = np.abs((data[column] - data[column].mean()) / data[column].std())
-    outliers_zscore = z_scores > 3
-    
-    outlier_count_iso = sum(1 for x in outliers_iso if x == -1)
-    outlier_count_iqr = sum(outliers_iqr)
-    outlier_count_zscore = sum(outliers_zscore)
-    
-    total_points = len(data)
-    
-    consensus_outliers = 0
-    for i in range(len(data)):
-        methods_agree = 0
-        if outliers_iso[i] == -1:
-            methods_agree += 1
-        if outliers_iqr.iloc[i]:
-            methods_agree += 1
-        if outliers_zscore.iloc[i]:
-            methods_agree += 1
-        
-        if methods_agree >= 2:
-            consensus_outliers += 1
-    
-    conclusion = f"Análise de outliers em '{column}': "
-    conclusion += f"Isolation Forest: {outlier_count_iso} ({outlier_count_iso/total_points*100:.1f}%), "
-    conclusion += f"IQR: {outlier_count_iqr} ({outlier_count_iqr/total_points*100:.1f}%), "
-    conclusion += f"Z-score: {outlier_count_zscore} ({outlier_count_zscore/total_points*100:.1f}%). "
-    conclusion += f"Consenso (≥2 métodos): {consensus_outliers} outliers. "
-    
-    # Adicionando recomendação automática
-    if consensus_outliers / total_points > 0.05: # Se mais de 5% forem outliers por consenso
-        conclusion += "Recomendação: A alta incidência de outliers sugere a necessidade de investigar a fundo esses valores para entender suas causas e impacto, e considerar estratégias de tratamento ou remoção."
-    elif consensus_outliers > 0:
-        conclusion += "Recomendação: Existem outliers detectados. É aconselhável investigar esses valores para garantir a integridade dos dados e a robustez das análises futuras."
-    else:
-        conclusion += "Recomendação: Poucos ou nenhum outlier detectado, indicando uma distribuição de dados mais consistente."
-
-    add_to_memory("outlier_detection", conclusion, {
-        "column": column,
-        "isolation_forest": outlier_count_iso,
-        "iqr_method": outlier_count_iqr,
-        "zscore_method": outlier_count_zscore,
-        "consensus_outliers": consensus_outliers,
-        "total_points": total_points
-    })
-    
-    st.session_state.analysis_cache[cache_key] = (None, conclusion)
-    return None, conclusion
-
-def analyze_balance(df, column):
-    """Análise de balanceamento para colunas binárias."""
-    cache_key = f"balance_analysis_{column}"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    if column not in df.columns:
-        return None, f"❌ Coluna '{column}' não encontrada"
-    
-    unique_values = df[column].nunique()
-    if unique_values != 2:
-        return None, f"❌ A coluna '{column}' não é binária (possui {unique_values} valores únicos)."
-    
-    value_counts = df[column].value_counts()
-    total_count = len(df[column])
-    
-    fig = plt.figure(figsize=(8, 6))
-    plt.pie(value_counts, labels=value_counts.index, autopct='%1.1f%%', startangle=90, colors=sns.color_palette('pastel'))
-    plt.title(f'Balanceamento da Coluna {column}')
-    plt.axis('equal') # Garante que o gráfico de pizza seja um círculo.
-    
-    conclusion = f"Análise de balanceamento da coluna '{column}': "
-    for val, count in value_counts.items():
-        percentage = (count / total_count) * 100
-        conclusion += f"Valor {val}: {count:,} ({percentage:.2f}%); "
-    
-    if value_counts.min() / total_count < 0.10:
-        conclusion += "Dataset altamente desbalanceado. Recomendação: Considerar técnicas de reamostragem (oversampling/undersampling) para balancear as classes antes da modelagem preditiva."
-    else:
-        conclusion += "Dataset relativamente balanceado. Recomendação: As classes estão bem distribuídas, o que é favorável para a maioria dos modelos de machine learning."
-    
-    add_to_memory("balance_analysis", conclusion, {
-        "column": column,
-        "value_counts": value_counts.to_dict(),
-        "total_count": total_count
-    })
-    
-    st.session_state.agent_memory['generated_plots'].append({'analysis_type': 'balance_analysis', 'figure': fig, 'column': column})
-    st.session_state.analysis_cache[cache_key] = (fig, conclusion)
-    return fig, conclusion
-
-def generate_pdf_report(df):
+def generate_pdf_report(df, agent: GeminiAgent):
     """Gera relatório PDF com todas as análises e informações do dataset."""
     pdf_buffer = io.BytesIO()
     
     with PdfPages(pdf_buffer) as pdf:
         # Página 1: Capa e informações do dataset
-        fig = plt.figure(figsize=(8.27, 11.69), dpi=100) # A4 size in inches
+        fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
         ax = fig.add_subplot(111)
         
-        ax.text(0.5, 0.95, '🤖 RELATÓRIO COMPLETO DE ANÁLISE DE DADOS', 
-                ha='center', va='top', fontsize=16, fontweight='bold')
-        ax.text(0.5, 0.90, 'Agente Autônomo de Análise', 
-                ha='center', va='top', fontsize=12)
-        ax.text(0.5, 0.87, f'Gerado em: {datetime.now().strftime("%d/%m/%Y %H:%M")}', 
-                ha='center', va='top', fontsize=10)
+        ax.text(0.5, 0.95, "🤖 RELATÓRIO COMPLETO DE ANÁLISE DE DADOS", 
+                ha="center", va="top", fontsize=16, fontweight="bold")
+        ax.text(0.5, 0.90, "Agente Autônomo com IA Generativa", 
+                ha="center", va="top", fontsize=12)
+        ax.text(0.5, 0.87, f"Gerado em: {datetime.now().strftime("%d/%m/%Y %H:%M")}", 
+                ha="center", va="top", fontsize=10)
         
         # Informações do dataset
         dataset_info = get_dataset_info(df)
-        ax.text(0.05, 0.80, dataset_info, ha='left', va='top', fontsize=8, 
+        ax.text(0.05, 0.80, dataset_info, ha="left", va="top", fontsize=8, 
                 wrap=True, bbox=dict(boxstyle="round,pad=0.3", facecolor="#e0f7fa", edgecolor="#00bcd4"))
         
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
-        ax.axis('off')
-        pdf.savefig(fig, bbox_inches='tight')
+        ax.axis("off")
+        pdf.savefig(fig, bbox_inches="tight")
         plt.close(fig)
 
         # Página 2 em diante: Resumo das análises e gráficos
-        analysis_summary_full = generate_complete_analysis_summary(df)
-        
-        # Dividir o texto do resumo em chunks para caber nas páginas
-        chunks = []
-        current_chunk = ""
-        max_chars_per_page = 2500 # Aumentar para caber mais texto por página
-        
-        # Adicionar título para o resumo das análises
-        summary_lines = analysis_summary_full.split('\n')
-        summary_title = summary_lines[0] # Assume que a primeira linha é o título
-        summary_content = '\n'.join(summary_lines[1:])
+        if "gemini_memory" in st.session_state and st.session_state.gemini_memory:
+            for i, entry in enumerate(st.session_state.gemini_memory):
+                fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
+                ax = fig.add_subplot(111)
+                
+                title = f"Análise {i+1}: {entry["type"].replace("_", " ").title()}"
+                ax.text(0.05, 0.95, title, ha="left", va="top", fontsize=14, fontweight="bold")
+                
+                content = ""
+                if entry["type"] == "initial_analysis":
+                    content = entry["data"]["full_response"]
+                elif entry["type"] == "user_query":
+                    content = f"Pergunta: {entry["data"]["query"]}\n\n" \
+                              f"Plano: {json.dumps(entry["data"]["plan"], indent=2)}\n\n" \
+                              f"Resultados da Execução:\n```\n{entry["data"]["results"]["text_output"]}\n```\n\n" \
+                              f"Resposta Final do Gemini:\n{entry["data"]["response"]}"
+                
+                # Dividir o conteúdo em chunks para caber na página
+                max_chars_per_page = 1500 # Ajuste conforme necessário
+                chunks = [content[j:j+max_chars_per_page] for j in range(0, len(content), max_chars_per_page)]
+                
+                for k, chunk in enumerate(chunks):
+                    if k > 0: # Para chunks subsequentes, criar nova página
+                        fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
+                        ax = fig.add_subplot(111)
+                        ax.text(0.05, 0.95, f"{title} (continuação {k+1})", ha="left", va="top", fontsize=12, fontweight="bold")
 
-        # Processar o conteúdo do resumo
-        for line in summary_content.split('\n'):
-            if len(current_chunk) + len(line) < max_chars_per_page:
-                current_chunk += line + '\n'
-            else:
-                chunks.append(current_chunk)
-                current_chunk = line + '\n'
-        if current_chunk:
-            chunks.append(current_chunk)
+                    ax.text(0.05, 0.90, chunk, ha="left", va="top", fontsize=8, wrap=True)
+                    ax.set_xlim(0, 1)
+                    ax.set_ylim(0, 1)
+                    ax.axis("off")
+                    pdf.savefig(fig, bbox_inches="tight")
+                    plt.close(fig)
 
-        for i, chunk in enumerate(chunks):
-            fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
-            ax = fig.add_subplot(111)
-            ax.text(0.05, 0.95, f'{summary_title} (Página {i+1})', ha='left', va='top', fontsize=14, fontweight='bold')
-            ax.text(0.05, 0.90, chunk, ha='left', va='top', fontsize=8, wrap=True)
-            ax.set_xlim(0, 1)
-            ax.set_ylim(0, 1)
-            ax.axis('off')
-            pdf.savefig(fig, bbox_inches='tight')
-            plt.close(fig)
-
-        # Adicionar gráficos gerados
-        for plot_data in st.session_state.agent_memory['generated_plots']:
-            fig = plot_data['figure']
-            if fig:
-                pdf.savefig(fig, bbox_inches='tight')
-                plt.close(fig)
+                # Adicionar gráficos gerados
+                if entry["type"] == "user_query" and entry["data"]["visualization"] and entry["data"]["visualization"]["status"] == "success" and entry["data"]["visualization"]["figure"]:
+                    fig_vis = entry["data"]["visualization"]["figure"]
+                    if fig_vis:
+                        # Criar uma nova página para o gráfico
+                        fig_plot_page = plt.figure(figsize=(8.27, 11.69), dpi=100)
+                        ax_plot = fig_plot_page.add_subplot(111)
+                        ax_plot.text(0.5, 0.95, f"Visualização para {title}", ha="center", va="top", fontsize=14, fontweight="bold")
+                        ax_plot.axis("off")
+                        
+                        # Renderizar o gráfico na nova figura
+                        # Isso é um workaround, pois pdf.savefig diretamente com a figura original pode ter problemas de layout
+                        # Uma abordagem melhor seria recriar o gráfico ou usar um método de renderização mais robusto
+                        # Por simplicidade, vamos apenas salvar a figura original diretamente
+                        pdf.savefig(fig_vis, bbox_inches="tight")
+                        plt.close(fig_vis)
     
     pdf_buffer.seek(0)
     return pdf_buffer.getvalue()
-
-# --- INTERPRETAÇÃO DE PERGUNTAS E SUGESTÕES ADAPTATIVAS ---
-
-def interpret_question(question, df):
-    """Interpretação semântica avançada de perguntas do usuário."""
-    question_lower = question.lower()
-    
-    # Mapeamento de palavras-chave 
-    keywords_map = {
-        'correlation': [r'correlaç(ão|ões)', r'relaç(ão|ões)', 'correlacionar', 'associação', 'dependência'],
-        'temporal': ['tempo', 'temporal', 'tendência', 'padrão temporal', 'série', 'cronológico', 'data'],
-        'clustering': ['cluster', 'agrupamento', 'grupo', 'segmentação', 'partição'],
-        'outliers': ['outlier', 'outliers', 'anomalia', 'anômalo', 'atípico', 'discrepante', 'aberrante'],
-        'frequency': ['frequente', 'frequentes', 'comum', 'raro', 'valores', 'contagem', 'ocorrência'],
-        'memory': ['memória', 'conclusão', 'histórico', 'resumo', 'descobertas', 'insights'],
-        'export': ['exportar', 'pdf', 'relatório', 'salvar', 'download'],
-        'descriptive': ['estatística', 'estatísticas', 'resumo', 'descritiva', 'média', 'mediana', 'desvio'],
-        'distribution': ['distribuição', 'histograma', 'frequência', 'densidade', 'spread'],
-        'balance': ['balanceamento', 'balancear', 'proporção', 'desbalanceado'] # Adicionado para balanceamento
-    }
-    
-    # Verificar palavras-chave específicas 
-    for analysis_type, keywords in keywords_map.items():
-        for keyword in keywords:
-            if re.search(r'\b' + keyword + r'\b', question_lower): # Usar regex para palavras inteiras
-                return analysis_type
-    
-    # Análise de verbos apenas se não encontrou palavras-chave específicas
-    if any(verb in question_lower for verb in ['mostre', 'exiba', 'visualize', 'plote', 'faça', 'analise']):
-        # Análise mais específica para verbos
-        if any(word in question_lower for word in ['tempo', 'temporal', 'data']):
-            return 'temporal'
-        elif any(word in question_lower for word in ['correlação', 'correlações', 'relação']):
-            return 'correlation'
-        elif any(word in question_lower for word in ['cluster', 'agrupamento']):
-            return 'clustering'
-        elif any(word in question_lower for word in ['outlier', 'anomalia']):
-            return 'outliers'
-        elif any(word in question_lower for word in ['frequente', 'frequentes', 'contagem']):
-            return 'frequency'
-        elif any(word in question_lower for word in ['estatística', 'descritiva', 'resumo']):
-            return 'descriptive'
-        elif any(word in question_lower for word in ['balanceamento', 'balancear', 'proporção']):
-            return 'balance'
-        else:
-            return 'distribution'  # Default para verbos genéricos
-    
-    return 'general'
-
-def get_adaptive_suggestions(df):
-    """Gera sugestões de análise adaptativas baseadas na estrutura do dataset."""
-    suggestions = []
-    
-    # 1. Colunas Numéricas
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    if len(numeric_cols) > 0:
-        suggestions.append('• "Mostre estatísticas descritivas" - Resumo das variáveis numéricas')
-        if len(numeric_cols) > 1:
-            suggestions.append('• "Mostre correlações entre variáveis" - Relação entre colunas numéricas')
-        suggestions.append('• "Detecte outliers com múltiplos métodos" - Encontra valores anômalos')
-        # Não sugerir distribuição para todas as colunas, apenas como exemplo
-        # suggestions.append('• "Qual a distribuição da coluna [Nome da Coluna]?" - Ex: Qual a distribuição da coluna Amount?')
-    
-    # 2. Colunas Categóricas/Discretas
-    categorical_cols = df.select_dtypes(include=['object', 'category']).columns
-    discrete_int_cols = [col for col in df.select_dtypes(include=['int64']).columns if df[col].nunique() <= 20]
-    if len(categorical_cols) > 0 or len(discrete_int_cols) > 0:
-        suggestions.append('• "Mostre valores mais frequentes" - Análise de distribuição de categorias/discretas')
-    
-    # 3. Colunas Temporais
-    time_cols = [col for col in df.columns if 'time' in col.lower() or 'date' in col.lower()]
-    if len(time_cols) > 0:
-        suggestions.append('• "Mostre padrões temporais nos dados" - Análise de tendências ao longo do tempo')
-    
-    # 4. Colunas Binárias Desbalanceadas (ex: 'Class')
-    for col in df.columns:
-        if df[col].nunique() == 2:
-            counts = df[col].value_counts(normalize=True)
-            if counts.min() < 0.10: # Se a menor classe for menos de 10%
-                suggestions.append(f'• "Analise o balanceamento da coluna {col}"')
-    
-    # 5. Clustering (se houver dados numéricos suficientes)
-    if len(numeric_cols) >= 2:
-        suggestions.append('• "Faça clustering automático dos dados" - Identifica grupos naturais nos dados')
-    
-    # 6. Memória do Agente
-    suggestions.append('• "Qual sua memória de análises?" - Consulta histórico de descobertas')
-    
-    return suggestions[:6] # Limitar a 6 sugestões
-
