@@ -166,22 +166,48 @@ if uploaded_file is not None:
             with st.expander("📄 Ver Análise Completa da IA"):
                 st.markdown(analysis.get('full_response', 'Análise não disponível'))
 
-        # === INFORMAÇÕES DO DATASET ===
+        # === PRÉVIA DO DATASET ===
         st.markdown("---")
-        st.subheader("📋 Informações Gerais do Dataset")
-        dataset_info_text = get_dataset_info(df)
-        st.markdown(dataset_info_text)
+        st.subheader("👀 Prévia do Dataset")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.write("**Primeiras 5 linhas:**")
+            st.dataframe(df.head(), use_container_width=True)
+        
+        with col2:
+            st.write("**Informações gerais:**")
+            st.write(f"• **Linhas:** {df.shape[0]:,}")
+            st.write(f"• **Colunas:** {df.shape[1]}")
+            st.write(f"• **Memória:** {df.memory_usage(deep=True).sum() / 1024**2:.1f} MB")
+            st.write(f"• **Nulos:** {df.isnull().sum().sum():,}")
+            st.write(f"• **Completude:** {((df.shape[0] * df.shape[1] - df.isnull().sum().sum()) / (df.shape[0] * df.shape[1]) * 100):.1f}%")
+
+        # === INFORMAÇÕES DETALHADAS ===
+        with st.expander("📋 Ver Informações Detalhadas"):
+            dataset_info_text = get_dataset_info(df)
+            st.markdown(dataset_info_text)
 
         # === CHAT COM IA ===
         st.markdown("---")
         st.subheader("💬 Converse com a IA sobre seus Dados")
         
+        # Gerenciar estado da pergunta usando session_state
+        if 'current_question' not in st.session_state:
+            st.session_state.current_question = ""
+        
         # Campo de pergunta
         user_question = st.text_input(
             "Faça uma pergunta sobre seus dados:",
+            value=st.session_state.current_question,
             placeholder="Ex: Quais são as correlações mais importantes?",
-            key="user_question"
+            key="user_question_input"
         )
+        
+        # Atualizar a pergunta atual
+        if user_question != st.session_state.current_question:
+            st.session_state.current_question = user_question
 
         # === SUGESTÕES INTELIGENTES ===
         st.markdown("**💡 Sugestões da IA:**")
@@ -193,10 +219,13 @@ if uploaded_file is not None:
                     st.session_state.smart_suggestions = st.session_state.gemini_agent.generate_smart_suggestions(df)
             
             # Criar botões clicáveis para as sugestões
+            cols = st.columns(2)
             for i, suggestion in enumerate(st.session_state.smart_suggestions):
-                if st.button(f"🔍 {suggestion}", key=f"suggestion_{i}"):
-                    st.session_state.user_question = suggestion
-                    st.rerun()
+                col_idx = i % 2
+                with cols[col_idx]:
+                    if st.button(f"🔍 {suggestion[:50]}...", key=f"suggestion_{i}", use_container_width=True):
+                        st.session_state.current_question = suggestion
+                        st.rerun()
         else:
             # Usar sugestões básicas
             basic_suggestions = get_adaptive_suggestions(df)
@@ -206,12 +235,15 @@ if uploaded_file is not None:
         st.markdown("---")
 
         # === PROCESSAMENTO DE PERGUNTA ===
-        if user_question:
+        # Usar a pergunta atual do session_state
+        question_to_process = st.session_state.current_question
+        
+        if question_to_process:
             if gemini_configured:
                 # MODO IA: Processamento inteligente completo
                 with st.spinner("🤖 IA processando sua pergunta..."):
                     try:
-                        response, visualization = st.session_state.gemini_agent.process_user_query(user_question, df)
+                        response, visualization = st.session_state.gemini_agent.process_user_query(question_to_process, df)
                         
                         # Mostrar resposta da IA
                         st.subheader("🧠 Resposta da IA")
@@ -229,6 +261,11 @@ if uploaded_file is not None:
                             st.error(f"Erro na visualização: {visualization.get('error_message')}")
                             with st.expander("🔧 Debug - Código gerado"):
                                 st.code(visualization.get("code_executed", "Código não disponível"), language="python")
+                        
+                        # Limpar a pergunta após processar
+                        if st.button("✅ Nova Pergunta"):
+                            st.session_state.current_question = ""
+                            st.rerun()
                     
                     except Exception as e:
                         st.error(f"Erro ao processar pergunta: {str(e)}")
