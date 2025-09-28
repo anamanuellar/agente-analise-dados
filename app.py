@@ -11,7 +11,6 @@ from utils import (
     perform_descriptive_analysis,
     plot_distribution,
     plot_correlation_heatmap,
-    analyze_temporal_patterns,
     perform_clustering_analysis,
     detect_outliers,
     analyze_balance,
@@ -146,4 +145,5 @@ if uploaded_file:
 
 else:
     st.info("👆 Faça upload de um CSV para começar a análise.")
+
 
