@@ -18,7 +18,7 @@ from typing import Dict, List, Any, Tuple
 class GeminiAgent:
     """Agente que USA Google Gemini como cérebro do sistema"""
     
-    def __init__(self, model_name="gemini-2.5-flash"):
+    def __init__(self, model_name="gemini-1.5-flash"):
         self.model_name = model_name
         self.model = None
         self.conversation_history = []
@@ -914,4 +914,5 @@ def get_adaptive_suggestions(df):
             "Mostre a distribuição da coluna principal",
             "Qual a memória do agente?"
         ]
+
 
