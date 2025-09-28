@@ -1,3 +1,4 @@
+# HybridGeminiAgent - VERSÃO COMPLETA CORRIGIDA
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,11 +17,12 @@ import google.generativeai as genai
 from typing import Dict, List, Any, Tuple
 from matplotlib.backends.backend_pdf import PdfPages
 
-# === ARQUITETURA HÍBRIDA ===
-
 class HybridGeminiAgent:
     """
-    Agente Híbrido corrigido para configuração adequada do Gemini
+    Agente Híbrido COMPLETO que combina:
+    - LLM (Gemini) para interpretação e insights
+    - Funções robustas para execução das análises
+    - Interface completa da versão 1
     """
     
     def __init__(self, model_name="gemini-2.5-flash"):  
@@ -28,7 +30,7 @@ class HybridGeminiAgent:
         self.model = None
         self.conversation_history = []
         self.dataset_context = {}
-        self.api_key = None  # Adicionar tracking da API key
+        self.api_key = None
         
         # Configurações do Gemini
         self.generation_config = {
@@ -146,98 +148,6 @@ class HybridGeminiAgent:
             return True, "Configuração OK"
         except Exception as e:
             return False, f"Erro na configuração: {str(e)}"
-
-# FUNÇÃO PARA INICIALIZAR O AGENTE NO STREAMLIT
-def initialize_hybrid_agent():
-    """Inicializa o agente híbrido no Streamlit"""
-    
-    # Verificar se já existe na sessão
-    if 'hybrid_agent' not in st.session_state:
-        st.session_state.hybrid_agent = HybridGeminiAgent()
-    
-    # Verificar configuração
-    agent = st.session_state.hybrid_agent
-    is_configured, status = agent.check_configuration()
-    
-    if not is_configured:
-        st.warning(f"⚠️ Configurando Gemini... Status: {status}")
-        
-        # Tentar configurar
-        success = agent.configure_gemini()
-        
-        if not success:
-            st.error("""
-            ❌ **Erro na configuração do Gemini**
-            
-            Verifique se:
-            1. O arquivo `.streamlit/secrets.toml` existe
-            2. Contém sua API key: `GEMINI_API_KEY = "sua_chave_aqui"`
-            3. A chave é válida no Google AI Studio
-            
-            **Como obter a API key:**
-            - Acesse: https://aistudio.google.com/app/apikey
-            - Crie uma nova chave
-            - Adicione ao secrets.toml
-            """)
-            return None
-    
-    return agent
-
-# EXEMPLO DE USO NO STREAMLIT
-def exemplo_uso_streamlit():
-    """Exemplo de como usar no Streamlit"""
-    
-    st.title("🤖 Agente Híbrido com Gemini")
-    
-    # Inicializar agente
-    agent = initialize_hybrid_agent()
-    
-    if agent is None:
-        st.stop()  # Para a execução se não conseguir configurar
-    
-    # Teste de funcionalidade
-    if st.button("🧪 Testar Gemini"):
-        with st.spinner("Testando conexão..."):
-            response = agent._call_gemini("Diga olá e confirme que está funcionando!")
-            st.success(f"✅ Resposta do Gemini: {response}")
-    
-    # Interface principal
-    user_question = st.text_input("💬 Faça uma pergunta:")
-    
-    if user_question:
-        with st.spinner("🤔 Gemini pensando..."):
-            response = agent._call_gemini(
-                user_question,
-                "Você é um assistente de análise de dados. Responda de forma clara e objetiva."
-            )
-            st.write("🤖 **Resposta:**")
-            st.write(response)
-
-# VERIFICAÇÃO DE SECRETS.TOML
-def verificar_secrets():
-    """Função para verificar se os secrets estão configurados"""
-    try:
-        # Método 1: GEMINI_API_KEY diretamente
-        if hasattr(st, 'secrets') and 'GEMINI_API_KEY' in st.secrets:
-            key = st.secrets['GEMINI_API_KEY']
-            if key and len(key) > 30:  # API keys do Google são longas
-                return True, "✅ GEMINI_API_KEY encontrada"
-            else:
-                return False, "❌ GEMINI_API_KEY muito curta ou vazia"
-        
-        # Método 2: gemini.api_key
-        elif hasattr(st, 'secrets') and 'gemini' in st.secrets:
-            if 'api_key' in st.secrets['gemini']:
-                key = st.secrets['gemini']['api_key']
-                if key and len(key) > 30:
-                    return True, "✅ gemini.api_key encontrada"
-                else:
-                    return False, "❌ gemini.api_key muito curta ou vazia"
-        
-        return False, "❌ Nenhuma API key encontrada em secrets.toml"
-        
-    except Exception as e:
-        return False, f"❌ Erro ao verificar secrets: {str(e)}"
     
     def analyze_dataset_initially(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Análise inicial com Gemini + dados estruturados robustos"""
@@ -538,652 +448,78 @@ def verificar_secrets():
                 columns_mentioned.append(col)
         return columns_mentioned
 
-# === FUNÇÕES ROBUSTAS DA VERSÃO 1 (MANTIDAS INTEGRALMENTE) ===
-
-def add_to_memory(analysis_type, conclusion, data_info=None, plot_data=None):
-    """Adiciona conclusão à memória do agente com timestamp e metadados."""
-    memory_entry = {
-        'timestamp': datetime.now().isoformat(),
-        'analysis_type': analysis_type,
-        'conclusion': conclusion,
-        'data_info': data_info or {}
-    }
+# FUNÇÃO PARA INICIALIZAR O AGENTE NO STREAMLIT
+def initialize_hybrid_agent():
+    """Inicializa o agente híbrido no Streamlit"""
     
-    st.session_state.agent_memory['conclusions'].append(memory_entry)
-    st.session_state.agent_memory['analysis_history'].append(analysis_type)
+    # Verificar se já existe na sessão
+    if 'hybrid_agent' not in st.session_state:
+        st.session_state.hybrid_agent = HybridGeminiAgent()
     
-    if plot_data:
-        st.session_state.agent_memory['generated_plots'].append(plot_data)
-
-def get_memory_summary():
-    """Retorna resumo inteligente da memória do agente."""
-    memory = st.session_state.agent_memory
-    if not memory['conclusions']:
-        return "🤖 **Agente iniciado.** Nenhuma análise realizada ainda."
+    # Verificar configuração
+    agent = st.session_state.hybrid_agent
+    is_configured, status = agent.check_configuration()
     
-    summary = f"🧠 **Resumo da Memória do Agente:**\n\n"
-    summary += f"- **Total de análises:** {len(memory['conclusions'])}\n"
-    summary += f"- **Tipos realizados:** {', '.join(set(memory['analysis_history']))}\n"
-    summary += f"- **Última análise:** {memory['conclusions'][-1]['analysis_type']}\n"
-    
-    summary += "\n📊 **Principais Descobertas:**\n"
-    for i, conclusion in enumerate(memory['conclusions'][-5:], 1):
-        summary += f"{i}. **{conclusion['analysis_type'].title()}:** {conclusion['conclusion'][:100]}...\n"
-    
-    return summary
-
-def get_dataset_info(df):
-    """Retorna informações descritivas completas do dataset."""
-    info = f"""
-📊 **INFORMAÇÕES DESCRITIVAS DO DATASET**
-
-**Dimensões:**
-- Linhas: {df.shape[0]:,}
-- Colunas: {df.shape[1]}
-- Tamanho em memória: {df.memory_usage(deep=True).sum() / 1024**2:.1f} MB
-
-**Qualidade dos Dados:**
-- Valores nulos: {df.isnull().sum().sum():,}
-- Valores únicos (média): {df.nunique().mean():.0f}
-- Completude: {((df.shape[0] * df.shape[1] - df.isnull().sum().sum()) / (df.shape[0] * df.shape[1]) * 100):.1f}%
-
-**Tipos de Colunas:**
-- Numéricas: {len(df.select_dtypes(include=[np.number]).columns)}
-- Categóricas: {len(df.select_dtypes(include=['object', 'category']).columns)}
-- Datetime: {len(df.select_dtypes(include=['datetime']).columns)}
-
-**Estatísticas Gerais:**
-- Densidade de dados: {(df.count().sum() / (df.shape[0] * df.shape[1]) * 100):.1f}%
-- Variabilidade média: {df.select_dtypes(include=[np.number]).std().mean():.2f}
-"""
-    return info
-
-def perform_descriptive_analysis(df):
-    """Análise descritiva robusta - VERSÃO 1 MANTIDA"""
-    cache_key = "descriptive_analysis"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    desc_stats = df.describe()
-    
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    conclusions = []
-    
-    for col in numeric_cols[:5]:
-        mean_val = df[col].mean()
-        std_val = df[col].std()
-        median_val = df[col].median()
+    if not is_configured:
+        st.warning(f"⚠️ Configurando Gemini... Status: {status}")
         
-        if std_val == 0:
-            skew_desc = "constante"
-        elif abs(mean_val - median_val) > std_val * 0.5:
-            skew_desc = "distribuição assimétrica"
-        else:
-            skew_desc = "distribuição aproximadamente simétrica"
+        # Tentar configurar
+        success = agent.configure_gemini()
+        
+        if not success:
+            st.error("""
+            ❌ **Erro na configuração do Gemini**
             
-        conclusions.append(f"'{col}': {skew_desc}, média={mean_val:.2f}, mediana={median_val:.2f}")
-    
-    conclusion_text = f"Análise descritiva completa de {len(numeric_cols)} variáveis numéricas. " + "; ".join(conclusions[:3])
-    add_to_memory("descriptive_analysis", conclusion_text, {
-        "numeric_columns": len(numeric_cols),
-        "total_rows": len(df),
-        "total_columns": len(df.columns)
-    })
-    
-    st.session_state.analysis_cache[cache_key] = desc_stats
-    return desc_stats
-
-def plot_correlation_heatmap(df):
-    """Gera mapa de correlação robusto - VERSÃO 1 MANTIDA"""
-    cache_key = "correlation_analysis"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    
-    if len(numeric_cols) < 2:
-        return None, "❌ Necessário pelo menos 2 colunas numéricas para correlação"
-    
-    fig, ax = plt.subplots(figsize=(min(16, max(8, len(numeric_cols))), min(12, max(6, len(numeric_cols)))))
-    corr_matrix = df[numeric_cols].corr()
-    
-    # Usar máscara apenas se matriz for grande
-    if len(numeric_cols) > 10:
-        mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
-        sns.heatmap(corr_matrix, mask=mask, annot=False, cmap='RdBu_r', 
-                    center=0, square=True, ax=ax, cbar_kws={"shrink": .8})
-    else:
-        sns.heatmap(corr_matrix, annot=True, cmap='RdBu_r', 
-                    center=0, square=True, fmt='.2f', ax=ax, cbar_kws={"shrink": .8})
-    
-    ax.set_title('Matriz de Correlação - Análise Completa', fontsize=14, pad=20)
-    plt.tight_layout()
-    
-    # Análise das correlações
-    high_corr_pairs = []
-    moderate_corr_pairs = []
-    
-    for i in range(len(corr_matrix.columns)):
-        for j in range(i+1, len(corr_matrix.columns)):
-            corr_val = corr_matrix.iloc[i, j]
-            if not np.isnan(corr_val):
-                col1, col2 = corr_matrix.columns[i], corr_matrix.columns[j]
-                
-                if abs(corr_val) > 0.7:
-                    high_corr_pairs.append((col1, col2, corr_val))
-                elif abs(corr_val) > 0.5:
-                    moderate_corr_pairs.append((col1, col2, corr_val))
-    
-    conclusion = f"Análise de correlação entre {len(numeric_cols)} variáveis: "
-    conclusion += f"{len(high_corr_pairs)} correlações altas (>0.7), "
-    conclusion += f"{len(moderate_corr_pairs)} correlações moderadas (0.5-0.7)."
-    
-    if high_corr_pairs:
-        top_corr = max(high_corr_pairs, key=lambda x: abs(x[2]))
-        conclusion += f" Maior correlação: {top_corr[0]} ↔ {top_corr[1]} ({top_corr[2]:.3f})."
-    
-    add_to_memory("correlation_analysis", conclusion, {
-        "high_correlations": len(high_corr_pairs),
-        "moderate_correlations": len(moderate_corr_pairs),
-        "variables_analyzed": len(numeric_cols)
-    })
-    
-    st.session_state.agent_memory['generated_plots'].append({'analysis_type': 'correlation_analysis', 'figure': fig})
-    st.session_state.analysis_cache[cache_key] = (fig, conclusion)
-    return fig, conclusion
-
-def plot_distribution(df, column):
-    """Gera histograma robusto - VERSÃO 1 MANTIDA"""
-    cache_key = f"distribution_analysis_{column}"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-    
-    # Histograma com KDE
-    sns.histplot(df[column].dropna(), kde=True, ax=ax1)
-    ax1.set_title(f'Distribuição de {column}')
-    ax1.set_xlabel(column)
-    ax1.set_ylabel('Frequência')
-    ax1.grid(True, alpha=0.3)
-    
-    # Box plot
-    sns.boxplot(y=df[column].dropna(), ax=ax2)
-    ax2.set_title(f'Box Plot - {column}')
-    ax2.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    
-    # Estatísticas
-    data_clean = df[column].dropna()
-    skewness = data_clean.skew()
-    kurtosis = data_clean.kurtosis()
-    q1, q3 = data_clean.quantile([0.25, 0.75])
-    iqr = q3 - q1
-    outliers_count = len(data_clean[(data_clean < q1 - 1.5*iqr) | (data_clean > q3 + 1.5*iqr)])
-    
-    if abs(skewness) > 1:
-        skew_desc = "altamente assimétrica"
-    elif abs(skewness) > 0.5:
-        skew_desc = "moderadamente assimétrica"
-    else:
-        skew_desc = "aproximadamente simétrica"
-    
-    conclusion = f"Distribuição de '{column}': {skew_desc} (skew={skewness:.2f}), "
-    conclusion += f"curtose={kurtosis:.2f}, {outliers_count} outliers detectados pelo método IQR"
-    
-    add_to_memory("distribution_analysis", conclusion, {
-        "column": column,
-        "skewness": float(skewness),
-        "kurtosis": float(kurtosis),
-        "outliers_iqr": int(outliers_count)
-    })
-    
-    st.session_state.agent_memory['generated_plots'].append({
-        'analysis_type': 'distribution_analysis', 
-        'figure': fig, 
-        'column': column
-    })
-    st.session_state.analysis_cache[cache_key] = (fig, conclusion)
-    return fig, conclusion
-
-def detect_outliers(df, column):
-    """Detecção de outliers robusta - VERSÃO 1 MANTIDA"""
-    cache_key = f"outlier_detection_{column}"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    if column not in df.columns:
-        return None, f"❌ Coluna '{column}' não encontrada"
-    
-    data = df[[column]].dropna()
-    
-    if len(data) < 10:
-        return None, f"❌ Poucos dados na coluna '{column}' para detecção de outliers"
-
-    # Múltiplos métodos
-    iso_forest = IsolationForest(contamination=0.1, random_state=42)
-    outliers_iso = iso_forest.fit_predict(data)
-    
-    Q1 = data[column].quantile(0.25)
-    Q3 = data[column].quantile(0.75)
-    IQR = Q3 - Q1
-    outliers_iqr = (data[column] < (Q1 - 1.5 * IQR)) | (data[column] > (Q3 + 1.5 * IQR))
-    
-    z_scores = np.abs((data[column] - data[column].mean()) / data[column].std())
-    outliers_zscore = z_scores > 3
-    
-    outlier_count_iso = sum(1 for x in outliers_iso if x == -1)
-    outlier_count_iqr = sum(outliers_iqr)
-    outlier_count_zscore = sum(outliers_zscore)
-    
-    total_points = len(data)
-    
-    # Consenso entre métodos
-    consensus_outliers = 0
-    for i in range(len(data)):
-        methods_agree = 0
-        if outliers_iso[i] == -1:
-            methods_agree += 1
-        if outliers_iqr.iloc[i]:
-            methods_agree += 1
-        if outliers_zscore.iloc[i]:
-            methods_agree += 1
-        
-        if methods_agree >= 2:
-            consensus_outliers += 1
-    
-    conclusion = f"Análise de outliers em '{column}': "
-    conclusion += f"Isolation Forest: {outlier_count_iso} ({outlier_count_iso/total_points*100:.1f}%), "
-    conclusion += f"IQR: {outlier_count_iqr} ({outlier_count_iqr/total_points*100:.1f}%), "
-    conclusion += f"Z-score: {outlier_count_zscore} ({outlier_count_zscore/total_points*100:.1f}%). "
-    conclusion += f"Consenso (≥2 métodos): {consensus_outliers} outliers"
-    
-    add_to_memory("outlier_detection", conclusion, {
-        "column": column,
-        "isolation_forest": outlier_count_iso,
-        "iqr_method": outlier_count_iqr,
-        "zscore_method": outlier_count_zscore,
-        "consensus_outliers": consensus_outliers,
-        "total_points": total_points
-    })
-    
-    st.session_state.analysis_cache[cache_key] = (None, conclusion)
-    return None, conclusion
-
-def perform_clustering_analysis(df, n_clusters=None, sample_size=5000):
-    """Análise de clustering robusta - VERSÃO 1 MANTIDA"""
-    cache_key = "clustering_analysis"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    if len(numeric_cols) < 2:
-        return None, "❌ Necessário pelo menos 2 colunas numéricas para clustering"
-    
-    actual_sample_size = min(sample_size, len(df))
-    
-    # Amostragem inteligente
-    if len(df) > sample_size:
-        df_sample = df.sample(n=actual_sample_size, random_state=42)
-    else:
-        df_sample = df
-    
-    df_numeric = df_sample[numeric_cols]
-    
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(df_numeric.fillna(df_numeric.mean()))
-    
-    if n_clusters is None:
-        silhouette_scores = []
-        K_range = range(2, min(11, len(df_sample)//50 + 2))
-        
-        if len(K_range) < 1:
-            return None, "❌ Amostra muito pequena para clustering"
-
-        for k in K_range:
-            kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-            cluster_labels = kmeans.fit_predict(X_scaled)
-            silhouette_avg = silhouette_score(X_scaled, cluster_labels)
-            silhouette_scores.append(silhouette_avg)
-        
-        n_clusters = K_range[np.argmax(silhouette_scores)]
-        best_silhouette = max(silhouette_scores)
-    else:
-        best_silhouette = None
-    
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-    cluster_labels = kmeans.fit_predict(X_scaled)
-    
-    if best_silhouette is None:
-        silhouette_avg = silhouette_score(X_scaled, cluster_labels)
-    else:
-        silhouette_avg = best_silhouette
-    
-    cluster_sizes = [np.sum(cluster_labels == i) for i in range(n_clusters)]
-    
-    if silhouette_avg > 0.7:
-        quality_desc = "excelente separação"
-    elif silhouette_avg > 0.5:
-        quality_desc = "boa separação"
-    elif silhouette_avg > 0.3:
-        quality_desc = "separação moderada"
-    else:
-        quality_desc = "separação fraca"
-    
-    conclusion = f"Clustering K-means identificou {n_clusters} grupos com {quality_desc} "
-    conclusion += f"(Silhouette: {silhouette_avg:.3f}). "
-    conclusion += f"Maior cluster: {max(cluster_sizes)} pontos, menor: {min(cluster_sizes)} pontos"
-    
-    add_to_memory("clustering_analysis", conclusion, {
-        "n_clusters": n_clusters,
-        "silhouette_score": float(silhouette_avg),
-        "cluster_sizes": cluster_sizes,
-        "sample_size": actual_sample_size
-    })
-    
-    st.session_state.analysis_cache[cache_key] = (None, conclusion)
-    return None, conclusion
-
-def analyze_frequent_values(df, max_categories=10):
-    """Análise de frequência robusta - VERSÃO 1 MANTIDA"""
-    cache_key = "frequency_analysis"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    categorical_cols = df.select_dtypes(include=['object', 'category']).columns
-    discrete_cols = [col for col in df.select_dtypes(include=['int64']).columns 
-                    if df[col].nunique() <= 20]
-    
-    results = {}
-    conclusions = []
-    
-    for col in categorical_cols:
-        if df[col].nunique() <= max_categories:
-            value_counts = df[col].value_counts()
-            results[col] = {
-                'type': 'categorical',
-                'most_frequent': value_counts.head(3).to_dict(),
-                'least_frequent': value_counts.tail(3).to_dict(),
-                'unique_count': df[col].nunique(),
-                'null_count': df[col].isnull().sum()
-            }
+            Verifique se:
+            1. O arquivo `.streamlit/secrets.toml` existe
+            2. Contém sua API key: `GEMINI_API_KEY = "sua_chave_aqui"`
+            3. A chave é válida no Google AI Studio
             
-            most_freq_val = value_counts.index[0]
-            most_freq_count = value_counts.iloc[0]
-            conclusions.append(f"'{col}': mais frequente = '{most_freq_val}' ({most_freq_count}x)")
+            **Como obter a API key:**
+            - Acesse: https://aistudio.google.com/app/apikey
+            - Crie uma nova chave
+            - Adicione ao secrets.toml
+            """)
+            return None
     
-    for col in discrete_cols:
-        if col not in categorical_cols:  # Evitar duplicatas
-            value_counts = df[col].value_counts()
-            results[col] = {
-                'type': 'discrete',
-                'most_frequent': value_counts.head(3).to_dict(),
-                'least_frequent': value_counts.tail(3).to_dict(),
-                'unique_count': df[col].nunique(),
-                'null_count': df[col].isnull().sum()
-            }
-            
-            most_freq_val = value_counts.index[0]
-            most_freq_count = value_counts.iloc[0]
-            conclusions.append(f"'{col}': mais frequente = {most_freq_val} ({most_freq_count}x)")
-    
-    if conclusions:
-        conclusion_text = f"Análise de frequência: {len(results)} colunas analisadas. " + "; ".join(conclusions[:3])
-        add_to_memory("frequency_analysis", conclusion_text, {"analyzed_columns": len(results)})
-    
-    st.session_state.analysis_cache[cache_key] = results
-    return results
+    return agent
 
-def analyze_balance(df, column):
-    """Análise de balanceamento robusta - VERSÃO 1 MANTIDA"""
-    cache_key = f"balance_analysis_{column}"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    if column not in df.columns:
-        return None, f"❌ Coluna '{column}' não encontrada"
-    
-    unique_values = df[column].nunique()
-    if unique_values != 2:
-        return None, f"❌ A coluna '{column}' não é binária (possui {unique_values} valores únicos)"
-    
-    value_counts = df[column].value_counts()
-    total_count = len(df[column])
-    
-    fig = plt.figure(figsize=(8, 6))
-    colors = plt.cm.Set3(np.linspace(0, 1, len(value_counts)))
-    plt.pie(value_counts, labels=value_counts.index, autopct='%1.1f%%', 
-           startangle=90, colors=colors)
-    plt.title(f'Balanceamento da Coluna {column}')
-    plt.axis('equal')
-    plt.tight_layout()
-    
-    conclusion = f"Balanceamento da coluna '{column}': "
-    for val, count in value_counts.items():
-        percentage = (count / total_count) * 100
-        conclusion += f"Valor {val}: {count:,} ({percentage:.1f}%); "
-    
-    if value_counts.min() / total_count < 0.10:
-        conclusion += "Dataset altamente desbalanceado"
-    elif value_counts.min() / total_count < 0.30:
-        conclusion += "Dataset moderadamente desbalanceado"
-    else:
-        conclusion += "Dataset relativamente balanceado"
-    
-    add_to_memory("balance_analysis", conclusion, {
-        "column": column,
-        "value_counts": value_counts.to_dict(),
-        "total_count": total_count
-    })
-    
-    st.session_state.agent_memory['generated_plots'].append({
-        'analysis_type': 'balance_analysis', 
-        'figure': fig, 
-        'column': column
-    })
-    st.session_state.analysis_cache[cache_key] = (fig, conclusion)
-    return fig, conclusion
-
-def analyze_temporal_patterns(df, time_column):
-    """Análise temporal robusta - VERSÃO 1 MANTIDA"""
-    cache_key = f"temporal_analysis_{time_column}"
-    if cache_key in st.session_state.analysis_cache:
-        return st.session_state.analysis_cache[cache_key]
-
-    if time_column not in df.columns:
-        return None, f"Coluna '{time_column}' não encontrada"
-    
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
-    
-    # Histograma temporal
-    ax1.hist(df[time_column].dropna(), bins=50, alpha=0.7, color='skyblue', edgecolor='black')
-    ax1.set_title(f'Distribuição Temporal - {time_column}')
-    ax1.set_xlabel('Tempo')
-    ax1.set_ylabel('Frequência')
-    ax1.grid(True, alpha=0.3)
-    
-    # Padrões por classe (se existir coluna Class)
-    if 'Class' in df.columns:
-        for class_val in sorted(df['Class'].unique()):
-            subset = df[df['Class'] == class_val]
-            ax2.hist(subset[time_column].dropna(), bins=30, alpha=0.6, 
-                    label=f'Classe {class_val} (n={len(subset)})')
-        ax2.set_title('Padrões Temporais por Classe')
-        ax2.legend()
-    else:
-        # Linha temporal geral
-        time_sorted = df.sort_values(time_column)
-        ax2.plot(time_sorted[time_column], range(len(time_sorted)), alpha=0.7)
-        ax2.set_title('Evolução Temporal')
-    
-    ax2.set_xlabel('Tempo')
-    ax2.grid(True, alpha=0.3)
-    
-    # Intervalos temporais
-    time_diffs = df[time_column].diff().dropna()
-    if len(time_diffs) > 0:
-        ax3.hist(time_diffs, bins=30, alpha=0.7, color='lightgreen', edgecolor='black')
-        ax3.set_title('Distribuição de Intervalos Temporais')
-        ax3.set_xlabel('Diferença de Tempo')
-        ax3.set_ylabel('Frequência')
-    ax3.grid(True, alpha=0.3)
-
-    # Box plot temporal
-    bp = ax4.boxplot(df[time_column].dropna(), patch_artist=True)
-    bp['boxes'][0].set_facecolor('lightcoral')
-    ax4.set_title(f'Box Plot - {time_column}')
-    ax4.set_ylabel('Tempo')
-    ax4.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-
-    # Estatísticas temporais
-    time_data = df[time_column].dropna()
-    time_range = time_data.max() - time_data.min()
-    time_mean = time_data.mean()
-    time_std = time_data.std()
-    
-    conclusion = f"Análise temporal de {len(time_data)} registros em {time_range:.0f} unidades de tempo. "
-    conclusion += f"Média: {time_mean:.0f}, desvio: {time_std:.0f}"
-
-    add_to_memory("temporal_analysis", conclusion, {
-        "time_column": time_column,
-        "time_range": float(time_range),
-        "time_mean": float(time_mean),
-        "records_analyzed": len(time_data)
-    })
-
-    st.session_state.agent_memory['generated_plots'].append({
-        'analysis_type': 'temporal_analysis', 
-        'figure': fig, 
-        'column': time_column
-    })
-    st.session_state.analysis_cache[cache_key] = (fig, conclusion)
-    return fig, conclusion
-
-def generate_complete_analysis_summary(df):
-    """Gera resumo completo - VERSÃO 1 MANTIDA"""
-    summary_text = f"""
-🤖 **RESUMO COMPLETO DAS ANÁLISES - AGENTE HÍBRIDO COM GEMINI**
-
-{get_dataset_info(df)}
-
-📈 **ANÁLISES REALIZADAS:**
-"""
-    
-    for i, conclusion_entry in enumerate(st.session_state.agent_memory['conclusions'], 1):
-        analysis_name = conclusion_entry['analysis_type'].replace('_', ' ').title()
-        summary_text += f"\n**{i}. {analysis_name}:**\n"
-        summary_text += f"   {conclusion_entry['conclusion']}\n"
-        summary_text += f"   *{conclusion_entry['timestamp'][:19]}*\n"
-    
-    summary_text += f"""
-
-🎯 **INSIGHTS PRINCIPAIS:**
-
-1. **Qualidade:** Dataset com {df.shape[0]:,} registros e {df.shape[1]} variáveis
-2. **Completude:** {((df.shape[0] * df.shape[1] - df.isnull().sum().sum()) / (df.shape[0] * df.shape[1]) * 100):.1f}%
-3. **Análises:** {len(st.session_state.agent_memory['conclusions'])} análises executadas
-4. **Inteligência:** Agente híbrido com LLM + funções robustas
-
-📊 **TOTAL DE ANÁLISES:** {len(st.session_state.agent_memory['conclusions'])}
-🧠 **POWERED BY:** Gemini + Funções Robustas
-🕐 **GERADO EM:** {datetime.now().strftime("%d/%m/%Y às %H:%M:%S")}
-
----
-🤖 **Agente Híbrido - I2A2 Academy 2025**
-"""
-    return summary_text
-
-def generate_pdf_report(df, gemini_insights=None):
-    """Gera PDF robusto - VERSÃO 1 APRIMORADA"""
-    pdf_buffer = io.BytesIO()
-    
-    with PdfPages(pdf_buffer) as pdf:
-        # Página 1: Capa
-        fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
-        ax = fig.add_subplot(111)
+# VERIFICAÇÃO DE SECRETS.TOML
+def verificar_secrets():
+    """Função para verificar se os secrets estão configurados"""
+    try:
+        # Método 1: GEMINI_API_KEY diretamente
+        if hasattr(st, 'secrets') and 'GEMINI_API_KEY' in st.secrets:
+            key = st.secrets['GEMINI_API_KEY']
+            if key and len(key) > 30:  # API keys do Google são longas
+                return True, "✅ GEMINI_API_KEY encontrada"
+            else:
+                return False, "❌ GEMINI_API_KEY muito curta ou vazia"
         
-        ax.text(0.5, 0.95, '🤖 RELATÓRIO AGENTE HÍBRIDO', 
-                ha='center', va='top', fontsize=16, fontweight='bold')
-        ax.text(0.5, 0.90, 'Powered by Gemini + Funções Robustas', 
-                ha='center', va='top', fontsize=12, style='italic')
-        ax.text(0.5, 0.87, f'Gerado em: {datetime.now().strftime("%d/%m/%Y %H:%M")}', 
-                ha='center', va='top', fontsize=10)
+        # Método 2: gemini.api_key
+        elif hasattr(st, 'secrets') and 'gemini' in st.secrets:
+            if 'api_key' in st.secrets['gemini']:
+                key = st.secrets['gemini']['api_key']
+                if key and len(key) > 30:
+                    return True, "✅ gemini.api_key encontrada"
+                else:
+                    return False, "❌ gemini.api_key muito curta ou vazia"
         
-        # Informações do dataset
-        dataset_info = get_dataset_info(df)
-        ax.text(0.05, 0.75, dataset_info, ha='left', va='top', fontsize=8, 
-                wrap=True, bbox=dict(boxstyle="round,pad=0.3", facecolor="#e3f2fd"))
+        return False, "❌ Nenhuma API key encontrada em secrets.toml"
         
-        # Insights do Gemini se disponível
-        if gemini_insights:
-            ax.text(0.05, 0.40, "🧠 INSIGHTS DA IA:", ha='left', va='top', 
-                   fontsize=10, fontweight='bold')
-            ax.text(0.05, 0.35, gemini_insights[:500] + "...", ha='left', va='top', 
-                   fontsize=8, wrap=True, bbox=dict(boxstyle="round,pad=0.3", facecolor="#f3e5f5"))
-        
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.axis('off')
-        pdf.savefig(fig, bbox_inches='tight')
-        plt.close(fig)
+    except Exception as e:
+        return False, f"❌ Erro ao verificar secrets: {str(e)}"
 
-        # Página 2+: Resumo das análises
-        analysis_summary = generate_complete_analysis_summary(df)
-        
-        # Dividir texto em páginas
-        max_chars_per_page = 3000
-        text_chunks = [analysis_summary[i:i+max_chars_per_page] 
-                      for i in range(0, len(analysis_summary), max_chars_per_page)]
-
-        for i, chunk in enumerate(text_chunks):
-            fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
-            ax = fig.add_subplot(111)
-            ax.text(0.05, 0.95, f'RESUMO DAS ANÁLISES (Página {i+1})', 
-                   ha='left', va='top', fontsize=14, fontweight='bold')
-            ax.text(0.05, 0.90, chunk, ha='left', va='top', fontsize=9, wrap=True)
-            ax.set_xlim(0, 1)
-            ax.set_ylim(0, 1)
-            ax.axis('off')
-            pdf.savefig(fig, bbox_inches='tight')
-            plt.close(fig)
-
-        # Adicionar gráficos
-        for plot_data in st.session_state.agent_memory.get('generated_plots', []):
-            fig = plot_data.get('figure')
-            if fig:
-                # Adicionar título descritivo
-                analysis_type = plot_data.get('analysis_type', 'Análise').replace('_', ' ').title()
-                column = plot_data.get('column', '')
-                title = f'{analysis_type}' + (f' - {column}' if column else '')
-                fig.suptitle(title, fontsize=14, fontweight='bold', y=0.98)
-                pdf.savefig(fig, bbox_inches='tight')
-                plt.close(fig)
+# Adicione isso temporariamente para verificar a configuração
+if st.sidebar.button("🔧 Debug Gemini"):
+    has_secrets, message = verificar_secrets()
+    st.sidebar.write(message)
     
-    pdf_buffer.seek(0)
-    return pdf_buffer.getvalue()
-
-# === FUNÇÕES DE COMPATIBILIDADE ===
-
-def interpret_question(question, df):
-    """Função de compatibilidade - agora usa HybridGeminiAgent"""
-    # Esta função é mantida para compatibilidade com a versão 1
-    # Mas na prática, usaremos o método interpret_query_intelligently
-    return "general"
-
-def get_adaptive_suggestions(df):
-    """Função de compatibilidade - agora usa HybridGeminiAgent"""
-    # Sugestões básicas como fallback
-    suggestions = [
-        "• Mostre estatísticas descritivas",
-        "• Mostre correlações entre variáveis", 
-        "• Faça clustering automático dos dados",
-        "• Detecte outliers nas colunas numéricas",
-        "• Mostre valores mais frequentes",
-        "• Qual sua memória de análises?"
-    ]
-    return suggestions
-
-
+    if has_secrets:
+        agent = st.session_state.hybrid_agent
+        is_configured, status = agent.check_configuration()
+        st.sidebar.write(f"Status: {status}")
+        
+        if is_configured:
+            response = agent._call_gemini("Teste rápido")
+            st.sidebar.success(f"Funcionando: {response[:50]}...")
