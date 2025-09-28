@@ -1,3 +1,4 @@
+# Importações corrigidas
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,10 +16,17 @@ import streamlit as st
 import google.generativeai as genai
 from typing import Dict, List, Any, Tuple
 
+# CORREÇÃO: Importação específica do PdfPages
+try:
+    from matplotlib.backends.backend_pdf import PdfPages
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
+
 class GeminiAgent:
     """Agente que USA Google Gemini como cérebro do sistema"""
     
-    def __init__(self, model_name="gemini-1.5-flash"):
+    def __init__(self, model_name="gemini-2.0-flash-exp"):
         self.model_name = model_name
         self.model = None
         self.conversation_history = []
@@ -796,103 +804,149 @@ def get_dataset_info(df):
 
 def generate_pdf_report(df, agent: GeminiAgent):
     """Gera relatório PDF com todas as análises e informações do dataset."""
+    if not PDF_AVAILABLE:
+        raise ImportError("PdfPages não está disponível. Instale matplotlib com suporte a PDF.")
+    
     pdf_buffer = io.BytesIO()
     
-    with PdfPages(pdf_buffer) as pdf:
-        # Página 1: Capa e informações do dataset
-        fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
-        ax = fig.add_subplot(111)
-        
-        ax.text(0.5, 0.95, "🤖 RELATÓRIO COMPLETO DE ANÁLISE DE DADOS", 
-                ha="center", va="top", fontsize=16, fontweight="bold")
-        ax.text(0.5, 0.90, "Agente Autônomo com IA Generativa", 
-                ha="center", va="top", fontsize=12)
-        ax.text(0.5, 0.87, f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", 
-                ha="center", va="top", fontsize=10)
-        
-        dataset_info = get_dataset_info(df)
-        ax.text(0.05, 0.80, dataset_info, ha="left", va="top", fontsize=8, 
-                wrap=True, bbox=dict(boxstyle="round,pad=0.3", facecolor="#e0f7fa", edgecolor="#00bcd4"))
-        
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.axis("off")
-        pdf.savefig(fig, bbox_inches="tight")
-        plt.close(fig)
-
-        # Páginas subsequentes: Análises realizadas
-        if hasattr(st.session_state, 'gemini_memory') and st.session_state.gemini_memory:
-            for i, entry in enumerate(st.session_state.gemini_memory):
-                try:
-                    fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
-                    ax = fig.add_subplot(111)
-                    
-                    title = f"Análise {i+1}: {entry['type'].replace('_', ' ').title()}"
-                    ax.text(0.05, 0.95, title, ha="left", va="top", fontsize=14, fontweight="bold")
-                    
-                    content = ""
-                    if entry["type"] == "initial_analysis":
-                        # Verificar se os dados existem
-                        data = entry.get("data", {})
-                        content = data.get("full_response", "Análise inicial não disponível")
-                    elif entry["type"] == "user_query":
-                        # Verificar se os dados existem
-                        data = entry.get("data", {})
-                        query = data.get("query", "Pergunta não disponível")
-                        response = data.get("response", "Resposta não disponível")
-                        
-                        content = f"Pergunta: {query}\n\nResposta Final:\n{response}"
-                    
-                    # Limitar o conteúdo para caber na página
-                    content = content[:1500] if content else "Conteúdo não disponível"
-                    
-                    ax.text(0.05, 0.90, content, ha="left", va="top", fontsize=8)
-                    ax.set_xlim(0, 1)
-                    ax.set_ylim(0, 1)
-                    ax.axis("off")
-                    pdf.savefig(fig, bbox_inches="tight")
-                    plt.close(fig)
-
-                    # Adicionar gráficos se existirem
-                    if (entry["type"] == "user_query" and 
-                        entry.get("data", {}).get("visualization") and 
-                        entry["data"]["visualization"].get("status") == "success" and
-                        entry["data"]["visualization"].get("figure")):
-                        
-                        try:
-                            fig_vis = entry["data"]["visualization"]["figure"]
-                            if fig_vis:
-                                pdf.savefig(fig_vis, bbox_inches="tight")
-                                plt.close(fig_vis)
-                        except Exception as viz_error:
-                            # Se falhar ao adicionar gráfico, continuar sem ele
-                            continue
-                            
-                except Exception as e:
-                    # Se falhar em uma análise específica, criar página de erro
-                    fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
-                    ax = fig.add_subplot(111)
-                    ax.text(0.05, 0.95, f"Erro na Análise {i+1}", ha="left", va="top", fontsize=14, fontweight="bold")
-                    ax.text(0.05, 0.90, f"Erro: {str(e)}", ha="left", va="top", fontsize=10)
-                    ax.set_xlim(0, 1)
-                    ax.set_ylim(0, 1)
-                    ax.axis("off")
-                    pdf.savefig(fig, bbox_inches="tight")
-                    plt.close(fig)
-        else:
-            # Se não há análises, criar página indicando isso
+    try:
+        with PdfPages(pdf_buffer) as pdf:
+            # Página 1: Capa e informações do dataset
             fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
             ax = fig.add_subplot(111)
-            ax.text(0.5, 0.5, "Nenhuma análise realizada ainda.\nFaça algumas perguntas ao agente primeiro.", 
-                   ha="center", va="center", fontsize=12)
+            
+            ax.text(0.5, 0.95, "🤖 RELATÓRIO COMPLETO DE ANÁLISE DE DADOS", 
+                    ha="center", va="top", fontsize=16, fontweight="bold")
+            ax.text(0.5, 0.90, "Agente Autônomo com IA Generativa", 
+                    ha="center", va="top", fontsize=12)
+            ax.text(0.5, 0.87, f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", 
+                    ha="center", va="top", fontsize=10)
+            
+            dataset_info = get_dataset_info(df)
+            ax.text(0.05, 0.80, dataset_info, ha="left", va="top", fontsize=8, 
+                    wrap=True, bbox=dict(boxstyle="round,pad=0.3", facecolor="#e0f7fa", edgecolor="#00bcd4"))
+            
             ax.set_xlim(0, 1)
             ax.set_ylim(0, 1)
             ax.axis("off")
             pdf.savefig(fig, bbox_inches="tight")
             plt.close(fig)
-    
-    pdf_buffer.seek(0)
-    return pdf_buffer.getvalue()
+
+            # Páginas subsequentes: Análises realizadas
+            if hasattr(st.session_state, 'gemini_memory') and st.session_state.gemini_memory:
+                for i, entry in enumerate(st.session_state.gemini_memory):
+                    try:
+                        fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
+                        ax = fig.add_subplot(111)
+                        
+                        title = f"Análise {i+1}: {entry['type'].replace('_', ' ').title()}"
+                        ax.text(0.05, 0.95, title, ha="left", va="top", fontsize=14, fontweight="bold")
+                        
+                        content = ""
+                        if entry["type"] == "initial_analysis":
+                            # Verificar se os dados existem
+                            data = entry.get("data", {})
+                            content = data.get("full_response", "Análise inicial não disponível")
+                        elif entry["type"] == "user_query":
+                            # Verificar se os dados existem
+                            data = entry.get("data", {})
+                            query = data.get("query", "Pergunta não disponível")
+                            response = data.get("response", "Resposta não disponível")
+                            
+                            content = f"Pergunta: {query}\n\nResposta Final:\n{response}"
+                        
+                        # Limitar o conteúdo para caber na página
+                        content = content[:1500] if content else "Conteúdo não disponível"
+                        
+                        ax.text(0.05, 0.90, content, ha="left", va="top", fontsize=8)
+                        ax.set_xlim(0, 1)
+                        ax.set_ylim(0, 1)
+                        ax.axis("off")
+                        pdf.savefig(fig, bbox_inches="tight")
+                        plt.close(fig)
+
+                        # Adicionar gráficos se existirem
+                        if (entry["type"] == "user_query" and 
+                            entry.get("data", {}).get("visualization") and 
+                            entry["data"]["visualization"].get("status") == "success" and
+                            entry["data"]["visualization"].get("figure")):
+                            
+                            try:
+                                fig_vis = entry["data"]["visualization"]["figure"]
+                                if fig_vis:
+                                    pdf.savefig(fig_vis, bbox_inches="tight")
+                                    plt.close(fig_vis)
+                            except Exception:
+                                # Se falhar ao adicionar gráfico, continuar sem ele
+                                continue
+                                
+                    except Exception as e:
+                        # Se falhar em uma análise específica, criar página de erro
+                        fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
+                        ax = fig.add_subplot(111)
+                        ax.text(0.05, 0.95, f"Erro na Análise {i+1}", ha="left", va="top", fontsize=14, fontweight="bold")
+                        ax.text(0.05, 0.90, f"Erro: {str(e)}", ha="left", va="top", fontsize=10)
+                        ax.set_xlim(0, 1)
+                        ax.set_ylim(0, 1)
+                        ax.axis("off")
+                        pdf.savefig(fig, bbox_inches="tight")
+                        plt.close(fig)
+            else:
+                # Se não há análises, criar página indicando isso
+                fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
+                ax = fig.add_subplot(111)
+                ax.text(0.5, 0.5, "Nenhuma análise realizada ainda.\nFaça algumas perguntas ao agente primeiro.", 
+                       ha="center", va="center", fontsize=12)
+                ax.set_xlim(0, 1)
+                ax.set_ylim(0, 1)
+                ax.axis("off")
+                pdf.savefig(fig, bbox_inches="tight")
+                plt.close(fig)
+        
+        pdf_buffer.seek(0)
+        return pdf_buffer.getvalue()
+        
+            except Exception as e:
+        # Fallback: criar um relatório de texto simples
+        st.error(f"Erro ao gerar PDF: {str(e)}")
+        return generate_text_report_fallback(df, agent)
+
+def generate_text_report_fallback(df, agent: GeminiAgent):
+    """Fallback: gera relatório em texto quando PDF falha"""
+    try:
+        # Usar o método existente get_full_memory_summary
+        report_content = agent.get_full_memory_summary()
+        
+        # Adicionar informações do dataset
+        dataset_info = get_dataset_info(df)
+        full_report = f"""
+RELATÓRIO COMPLETO DE ANÁLISE DE DADOS
+Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}
+
+{dataset_info}
+
+{report_content}
+"""
+        
+        # Converter para bytes
+        return full_report.encode('utf-8')
+        
+    except Exception as e:
+        # Último fallback
+        simple_report = f"""
+RELATÓRIO DE ANÁLISE - ERRO NA GERAÇÃO
+Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}
+
+Dataset: {df.shape[0]} linhas x {df.shape[1]} colunas
+
+Erro na geração do relatório: {str(e)}
+
+Para obter um relatório completo, tente:
+1. Verificar as dependências do matplotlib
+2. Executar algumas análises primeiro
+3. Verificar a configuração do Gemini
+"""
+        return simple_report.encode('utf-8')
 
 def initialize_gemini_agent():
     """Inicializa o agente Gemini no Streamlit"""
@@ -914,5 +968,3 @@ def get_adaptive_suggestions(df):
             "Mostre a distribuição da coluna principal",
             "Qual a memória do agente?"
         ]
-
-
