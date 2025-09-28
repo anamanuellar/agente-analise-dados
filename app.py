@@ -5,14 +5,12 @@ import base64
 from utils import (
     GeminiAgent,
     add_to_memory,
-    get_memory_summary,
     get_dataset_info,
-    analyze_frequent_values,
     perform_descriptive_analysis,
-    plot_distribution,
     plot_correlation_heatmap,
     perform_clustering_analysis,
     detect_outliers,
+    plot_distribution,
     analyze_balance,
     generate_pdf_report
 )
@@ -145,5 +143,6 @@ if uploaded_file:
 
 else:
     st.info("👆 Faça upload de um CSV para começar a análise.")
+
 
 
