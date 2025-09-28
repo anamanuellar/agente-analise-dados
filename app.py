@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import io
 import base64
+from datetime import datetime
+
 
 # Importações do novo GeminiAgent
 from utils import (
@@ -410,6 +412,7 @@ st.markdown("""
 Desenvolvido para análise inteligente de dados | 2025<br>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
