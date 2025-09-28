@@ -89,92 +89,298 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         """
     
     def analyze_dataset_initially(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """Análise inicial inteligente do dataset usando Gemini"""
+        """Análise inicial PROFUNDA e analítica do dataset usando Gemini"""
         
-        system_context = """Você é um especialista sênior em análise de dados com PhD em Estatística e vasta experiência em Business Intelligence. 
-        Analise datasets CSV e forneça insights profissionais, práticos e actionables."""
+        # Primeiro, calcular estatísticas avançadas para o prompt
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        categorical_cols = df.select_dtypes(include=["object"]).columns
+        
+        # Análise de correlações se houver colunas numéricas
+        correlation_summary = ""
+        if len(numeric_cols) >= 2:
+            corr_matrix = df[numeric_cols].corr()
+            high_corr = []
+            for i in range(len(corr_matrix.columns)):
+                for j in range(i+1, len(corr_matrix.columns)):
+                    corr_val = corr_matrix.iloc[i, j]
+                    if not np.isnan(corr_val) and abs(corr_val) > 0.5:
+                        high_corr.append(f"{corr_matrix.columns[i]} ↔ {corr_matrix.columns[j]}: {corr_val:.3f}")
+            correlation_summary = f"Correlações significativas encontradas: {len(high_corr)} pares com |r| > 0.5"
+        
+        # Análise de distribuições
+        distribution_summary = ""
+        if len(numeric_cols) > 0:
+            skew_analysis = []
+            for col in numeric_cols[:5]:  # Primeiras 5 colunas
+                skewness = df[col].skew()
+                if abs(skewness) > 1:
+                    skew_analysis.append(f"{col}: assimetria alta ({skewness:.2f})")
+                elif abs(skewness) > 0.5:
+                    skew_analysis.append(f"{col}: assimetria moderada ({skewness:.2f})")
+            distribution_summary = f"Distribuições: {'; '.join(skew_analysis) if skew_analysis else 'distribuições aproximadamente normais'}"
+        
+        # Análise de qualidade detalhada
+        missing_analysis = []
+        for col in df.columns:
+            missing_pct = (df[col].isnull().sum() / len(df)) * 100
+            if missing_pct > 0:
+                missing_analysis.append(f"{col}: {missing_pct:.1f}% faltante")
+        
+        system_context = """Você é um Senior Data Scientist com 15+ anos de experiência em análise exploratória de dados. 
+        Sua especialidade é identificar padrões, anomalias e oportunidades de insight em datasets complexos.
+        Forneça análises TÉCNICAS, ESPECÍFICAS e QUANTITATIVAS. Evite respostas genéricas."""
         
         prompt = f"""
-        Analise este dataset CSV e forneça uma análise estruturada seguindo EXATAMENTE este formato:
+        DATASET PARA ANÁLISE PROFUNDA:
 
-        INFORMAÇÕES ESTRUTURAIS:
-        - Linhas: {df.shape[0]:,}
-        - Colunas: {df.shape[1]}
+        📊 ESTRUTURA:
+        - {df.shape[0]:,} registros × {df.shape[1]} variáveis
+        - Densidade: {((df.shape[0] * df.shape[1] - df.isnull().sum().sum()) / (df.shape[0] * df.shape[1]) * 100):.1f}%
         - Memória: {df.memory_usage(deep=True).sum() / 1024**2:.1f} MB
 
-        TIPOS DE DADOS:
-        - Numéricas: {len(df.select_dtypes(include=[np.number]).columns)} colunas
-        - Categóricas: {len(df.select_dtypes(include=["object"]).columns)} colunas
-        - Dados faltantes: {df.isnull().sum().sum():,} valores
+        📈 COMPOSIÇÃO DOS DADOS:
+        - Numéricas: {list(numeric_cols)} ({len(numeric_cols)} colunas)
+        - Categóricas: {list(categorical_cols)} ({len(categorical_cols)} colunas)
 
-        NOMES DAS COLUNAS:
-        {list(df.columns)}
-
-        AMOSTRA DOS DADOS (3 primeiras linhas):
+        📋 AMOSTRA REPRESENTATIVA:
         {df.head(3).to_string()}
 
-        ESTATÍSTICAS BÁSICAS (colunas numéricas):
-        {df.select_dtypes(include=[np.number]).describe().to_string() if len(df.select_dtypes(include=[np.number]).columns) > 0 else "Nenhuma coluna numérica"}
+        📊 ESTATÍSTICAS QUANTITATIVAS:
+        {df.describe().to_string() if len(numeric_cols) > 0 else "Sem colunas numéricas para análise estatística"}
 
-        Com base nessas informações, forneça uma análise estruturada seguindo EXATAMENTE este formato:
+        🔗 ANÁLISE DE CORRELAÇÕES:
+        {correlation_summary}
+
+        📐 ANÁLISE DE DISTRIBUIÇÕES:
+        {distribution_summary}
+
+        🔍 QUALIDADE DOS DADOS:
+        - Valores faltantes: {'; '.join(missing_analysis[:10]) if missing_analysis else 'Dataset completo'}
+        - Duplicatas: {df.duplicated().sum():,} registros
+        - Variabilidade: CV médio = {(df[numeric_cols].std() / df[numeric_cols].mean()).mean():.3f if len(numeric_cols) > 0 else 'N/A'}
+
+        FORNEÇA UMA ANÁLISE ESTRUTURADA E TÉCNICA:
 
         ## IDENTIFICAÇÃO DO DOMÍNIO
-        [Identifique que tipo de dataset é este: financeiro, marketing, fraude, vendas, saúde, etc.]
+        Com base nos nomes das colunas, distribuições e padrões, identifique especificamente o tipo de dataset (ex: transações financeiras, dados de marketing, logs de sistema, etc.) e justifique sua conclusão.
 
-        ## AVALIAÇÃO DE QUALIDADE
-        [Como você avalia a qualidade dos dados? Completude, consistência, etc.]
+        ## AVALIAÇÃO TÉCNICA DE QUALIDADE
+        Avalie objetivamente: completude, consistência, outliers potenciais, balanceamento (se aplicável). Use números específicos.
 
-        ## CARACTERÍSTICAS PRINCIPAIS
-        - [Característica 1: descrição]
-        - [Característica 2: descrição]
-        - [Característica 3: descrição]
+        ## CARACTERÍSTICAS ANALÍTICAS PRINCIPAIS  
+        - [Característica 1: padrão específico identificado com evidências]
+        - [Característica 2: distribuição ou correlação relevante]
+        - [Característica 3: aspecto de qualidade ou estrutura importante]
 
-        ## ANÁLISES RECOMENDADAS
-        - [Análise 1: por que é importante]
-        - [Análise 2: por que é importante]
-        - [Análise 3: por que é importante]
+        ## ANÁLISES PRIORITÁRIAS RECOMENDADAS
+        - [Análise 1: técnica específica e por que é crítica para este dataset]
+        - [Análise 2: método estatístico recomendado e valor esperado]
+        - [Análise 3: exploração direcionada baseada nos padrões identificados]
 
-        ## INSIGHTS POTENCIAIS
-        - [Insight 1: o que pode ser descoberto]
-        - [Insight 2: o que pode ser descoberto]
-        - [Insight 3: o que pode ser descoberto]
+        ## HIPÓTESES E INSIGHTS POTENCIAIS
+        - [Hipótese 1: baseada em evidências dos dados observados]
+        - [Hipótese 2: padrão ou anomalia que merece investigação]
+        - [Hipótese 3: oportunidade de descoberta específica]
 
-        Seja específico, técnico mas acessível, focando em valor de negócio.
+        Seja TÉCNICO, ESPECÍFICO e baseado em EVIDÊNCIAS dos dados mostrados.
         """
         
         response = self._call_gemini(prompt, system_context)
         
-        # Processar resposta estruturada
-        try:
-            dataset_type = self._extract_section(response, "IDENTIFICAÇÃO DO DOMÍNIO", "AVALIAÇÃO DE QUALIDADE")
-            data_quality = self._extract_section(response, "AVALIAÇÃO DE QUALIDADE", "CARACTERÍSTICAS PRINCIPAIS")
-            key_characteristics = self._extract_list_items(response, "CARACTERÍSTICAS PRINCIPAIS", "ANÁLISES RECOMENDADAS")
-            recommended_analyses = self._extract_list_items(response, "ANÁLISES RECOMENDADAS", "INSIGHTS POTENCIAIS")
-            potential_insights = self._extract_list_items(response, "INSIGHTS POTENCIAIS", None)
-            
-            analysis_result = {
-                "dataset_type": dataset_type.strip() or "Dataset genérico identificado",
-                "data_quality": data_quality.strip() or "Qualidade dos dados avaliada",
-                "key_characteristics": key_characteristics or ["Análise detalhada disponível"],
-                "recommended_analyses": recommended_analyses or ["Estatísticas descritivas", "Análise de correlação"],
-                "potential_insights": potential_insights or ["Converse com o agente para descobrir insights"],
-                "full_response": response
-            }
-            
-        except Exception as e:
-            analysis_result = {
-                "dataset_type": "Dataset não classificado pelo Gemini",
-                "data_quality": "Avaliação detalhada disponível via chat",
-                "key_characteristics": ["Use o chat para análise detalhada"],
-                "recommended_analyses": ["Análise descritiva", "Correlações", "Detecção de outliers"],
-                "potential_insights": ["Converse com o Gemini para descobrir"],
-                "full_response": response
-            }
+        # Parsing mais robusto da resposta
+        analysis_result = self._parse_detailed_analysis(response, df)
         
         self.dataset_context = analysis_result
         self._add_to_gemini_memory("initial_analysis", analysis_result)
         
         return analysis_result
+    
+    def _parse_detailed_analysis(self, response: str, df: pd.DataFrame) -> Dict[str, Any]:
+        """Parse robusto da análise detalhada"""
+        try:
+            # Extrair seções com melhor parsing
+            dataset_type = self._extract_robust_section(response, ["IDENTIFICAÇÃO DO DOMÍNIO", "DOMÍNIO"], ["AVALIAÇÃO", "QUALIDADE"])
+            data_quality = self._extract_robust_section(response, ["AVALIAÇÃO", "QUALIDADE"], ["CARACTERÍSTICAS", "ANALÍTICAS"])
+            key_characteristics = self._extract_robust_list(response, ["CARACTERÍSTICAS", "ANALÍTICAS"], ["ANÁLISES", "PRIORITÁRIAS", "RECOMENDADAS"])
+            recommended_analyses = self._extract_robust_list(response, ["ANÁLISES", "RECOMENDADAS", "PRIORITÁRIAS"], ["HIPÓTESES", "INSIGHTS"])
+            potential_insights = self._extract_robust_list(response, ["HIPÓTESES", "INSIGHTS"], None)
+            
+            # Garantir conteúdo mínimo de qualidade
+            if not dataset_type or len(dataset_type.strip()) < 10:
+                dataset_type = self._generate_fallback_domain_analysis(df)
+            
+            if not key_characteristics or len(key_characteristics) < 2:
+                key_characteristics = self._generate_fallback_characteristics(df)
+            
+            if not recommended_analyses or len(recommended_analyses) < 2:
+                recommended_analyses = self._generate_fallback_recommendations(df)
+                
+            if not potential_insights or len(potential_insights) < 2:
+                potential_insights = self._generate_fallback_insights(df)
+            
+            return {
+                "dataset_type": dataset_type.strip(),
+                "data_quality": data_quality.strip() or self._generate_fallback_quality_analysis(df),
+                "key_characteristics": key_characteristics,
+                "recommended_analyses": recommended_analyses,
+                "potential_insights": potential_insights,
+                "full_response": response
+            }
+            
+        except Exception as e:
+            # Fallback com análise robusta própria
+            return {
+                "dataset_type": self._generate_fallback_domain_analysis(df),
+                "data_quality": self._generate_fallback_quality_analysis(df),
+                "key_characteristics": self._generate_fallback_characteristics(df),
+                "recommended_analyses": self._generate_fallback_recommendations(df),
+                "potential_insights": self._generate_fallback_insights(df),
+                "full_response": response
+            }
+    
+    def _extract_robust_section(self, text: str, start_markers: List[str], end_markers: List[str]) -> str:
+        """Extração robusta de seções com múltiplos marcadores"""
+        for start_marker in start_markers:
+            try:
+                start_idx = text.upper().find(start_marker.upper())
+                if start_idx != -1:
+                    start_idx = start_idx + len(start_marker)
+                    
+                    end_idx = len(text)
+                    if end_markers:
+                        for end_marker in end_markers:
+                            temp_end = text.upper().find(end_marker.upper(), start_idx)
+                            if temp_end != -1 and temp_end < end_idx:
+                                end_idx = temp_end
+                    
+                    section = text[start_idx:end_idx].strip()
+                    # Limpar marcadores markdown
+                    section = section.replace("##", "").replace("#", "").strip()
+                    
+                    if len(section) > 10:  # Seção substancial
+                        return section
+            except:
+                continue
+        return ""
+    
+    def _extract_robust_list(self, text: str, start_markers: List[str], end_markers: List[str]) -> List[str]:
+        """Extração robusta de listas"""
+        section = self._extract_robust_section(text, start_markers, end_markers)
+        if not section:
+            return []
+        
+        items = []
+        lines = section.split('\n')
+        for line in lines:
+            line = line.strip()
+            if line.startswith(('-', '•', '*', '1.', '2.', '3.', '4.', '5.')):
+                item = line.lstrip('-•*123456789. ').strip()
+                if len(item) > 15:  # Item substancial
+                    items.append(item)
+        
+        return items[:5]  # Máximo 5 itens
+    
+    def _generate_fallback_domain_analysis(self, df: pd.DataFrame) -> str:
+        """Gera análise de domínio robusta baseada nas colunas"""
+        cols_lower = [col.lower() for col in df.columns]
+        
+        # Detecção por padrões de nomes
+        if any(word in ' '.join(cols_lower) for word in ['transaction', 'amount', 'fraud', 'class']):
+            return "Dataset de Detecção de Fraude - baseado em colunas de transação e classificação"
+        elif any(word in ' '.join(cols_lower) for word in ['price', 'sales', 'revenue', 'customer']):
+            return "Dataset de Vendas/E-commerce - baseado em variáveis comerciais"
+        elif any(word in ' '.join(cols_lower) for word in ['time', 'timestamp', 'date']):
+            return "Dataset Temporal - contém componentes de série temporal"
+        elif len(df.select_dtypes(include=[np.number]).columns) > len(df.columns) * 0.7:
+            return "Dataset Quantitativo - predominantemente numérico para análise estatística"
+        else:
+            return f"Dataset Misto - {len(df.select_dtypes(include=[np.number]).columns)} variáveis numéricas e {len(df.select_dtypes(include=['object']).columns)} categóricas"
+    
+    def _generate_fallback_quality_analysis(self, df: pd.DataFrame) -> str:
+        """Gera análise de qualidade robusta"""
+        completeness = ((df.shape[0] * df.shape[1] - df.isnull().sum().sum()) / (df.shape[0] * df.shape[1]) * 100)
+        duplicates = df.duplicated().sum()
+        
+        quality_score = "EXCELENTE" if completeness > 95 and duplicates == 0 else \
+                       "BOA" if completeness > 90 else \
+                       "MODERADA" if completeness > 80 else "BAIXA"
+        
+        return f"Qualidade {quality_score}: {completeness:.1f}% completo, {duplicates:,} duplicatas, {df.shape[0]:,} registros válidos para análise"
+    
+    def _generate_fallback_characteristics(self, df: pd.DataFrame) -> List[str]:
+        """Gera características robustas baseadas na análise dos dados"""
+        characteristics = []
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) > 0:
+            skew_analysis = df[numeric_cols].skew()
+            highly_skewed = sum(abs(skew_analysis) > 1)
+            characteristics.append(f"Distribuições: {highly_skewed} de {len(numeric_cols)} variáveis numéricas apresentam assimetria alta")
+            
+            # Análise de variabilidade
+            cv = (df[numeric_cols].std() / df[numeric_cols].mean()).mean()
+            if cv > 1:
+                characteristics.append(f"Variabilidade alta: coeficiente de variação médio de {cv:.2f} indica dados heterogêneos")
+            
+            # Análise de correlações
+            if len(numeric_cols) >= 2:
+                corr_matrix = df[numeric_cols].corr()
+                high_corr_count = sum(sum(abs(corr_matrix.values) > 0.7) - len(corr_matrix)) // 2
+                characteristics.append(f"Estrutura de correlação: {high_corr_count} pares de variáveis altamente correlacionadas")
+        
+        # Análise categórica
+        categorical_cols = df.select_dtypes(include=['object']).columns
+        if len(categorical_cols) > 0:
+            high_cardinality = sum(df[col].nunique() > 50 for col in categorical_cols)
+            if high_cardinality > 0:
+                characteristics.append(f"Cardinalidade: {high_cardinality} variáveis categóricas com alta diversidade (>50 valores únicos)")
+        
+        return characteristics[:3] if characteristics else ["Dataset com estrutura padrão para análise exploratória"]
+    
+    def _generate_fallback_recommendations(self, df: pd.DataFrame) -> List[str]:
+        """Gera recomendações robustas baseadas na estrutura dos dados"""
+        recommendations = []
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) >= 2:
+            recommendations.append(f"Análise de correlação entre {len(numeric_cols)} variáveis numéricas para identificar relacionamentos lineares")
+        
+        if len(numeric_cols) > 0:
+            recommendations.append("Detecção de outliers multivariada usando Isolation Forest para identificar anomalias")
+        
+        if df.shape[0] > 1000:
+            recommendations.append("Clustering hierárquico ou K-means para segmentação e identificação de padrões latentes")
+        
+        # Análise temporal se detectada
+        time_cols = [col for col in df.columns if 'time' in col.lower() or 'date' in col.lower()]
+        if time_cols:
+            recommendations.append(f"Análise de séries temporais na coluna {time_cols[0]} para identificar tendências e sazonalidade")
+        
+        return recommendations[:3] if recommendations else ["Análise exploratória sistemática das variáveis principais"]
+    
+    def _generate_fallback_insights(self, df: pd.DataFrame) -> List[str]:
+        """Gera insights potenciais robustos"""
+        insights = []
+        
+        # Insights baseados na estrutura
+        if df.shape[0] > 10000:
+            insights.append(f"Grande volume de dados ({df.shape[0]:,} registros) permite análises estatísticas robustas e modelagem preditiva")
+        
+        # Insights sobre balanceamento
+        categorical_cols = df.select_dtypes(include=['object']).columns
+        for col in categorical_cols[:2]:
+            value_counts = df[col].value_counts()
+            if len(value_counts) == 2:  # Binária
+                balance_ratio = value_counts.min() / value_counts.max()
+                if balance_ratio < 0.1:
+                    insights.append(f"Forte desbalanceamento na variável {col} ({balance_ratio:.2f}) sugere necessidade de técnicas de balanceamento")
+        
+        # Insights sobre missing data
+        missing_cols = [col for col in df.columns if df[col].isnull().sum() > 0]
+        if len(missing_cols) > df.shape[1] * 0.3:
+            insights.append(f"Padrão de dados faltantes em {len(missing_cols)} variáveis pode indicar processo de coleta estruturado")
+        
+        return insights[:3] if insights else ["Potencial para descoberta de padrões não óbvios através de análise multivariada"]
     
     def process_user_query(self, user_query: str, df: pd.DataFrame) -> Tuple[str, Dict]:
         """Processa query do usuário usando Gemini para interpretação e execução"""
