@@ -157,7 +157,16 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         🔍 QUALIDADE DOS DADOS:
         - Valores faltantes: {'; '.join(missing_analysis[:10]) if missing_analysis else 'Dataset completo'}
         - Duplicatas: {df.duplicated().sum():,} registros
-        - Variabilidade: CV médio = {(df[numeric_cols].std() / df[numeric_cols].mean()).mean():.3f if len(numeric_cols) > 0 else 'N/A'}
+        # Calcular primeiro, depois formatar:
+        variability_text = "N/A"
+        if len(numeric_cols) > 0:
+            try:
+                cv_mean = (df[numeric_cols].std() / df[numeric_cols].mean()).mean()
+                if not np.isnan(cv_mean) and np.isfinite(cv_mean):
+                    variability_text = f"{cv_mean:.3f}"
+            except:
+                variability_text = "N/A"
+        - Variabilidade: CV médio = {variability_text}
 
         FORNEÇA UMA ANÁLISE ESTRUTURADA E TÉCNICA:
 
@@ -858,3 +867,4 @@ def get_adaptive_suggestions(df):
             "Mostre a distribuição da coluna principal",
             "Qual a memória do agente?"
         ]
+
