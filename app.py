@@ -136,12 +136,12 @@ if uploaded_file is not None:
         st.subheader("👀 Prévia do Dataset")
 
         # Bloco 1: Informações gerais
-            st.write(f"• **Arquivo:** {uploaded_file.name}")
-            st.write(f"• **Upload em:** {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+        st.write(f"• **Arquivo:** {uploaded_file.name}")
+        st.write(f"• **Upload em:** {datetime.now().strftime('%d/%m/%Y %H:%M')}")
                 
         # Bloco 2: Preview do dataset
-            st.write("**Primeiras 5 linhas:**")
-            st.dataframe(df.head(), use_container_width=True)
+        st.write("**Primeiras 5 linhas:**")
+        st.dataframe(df.head(), use_container_width=True)
         
         # === INFORMAÇÕES DETALHADAS ===
         with st.expander("📋 Ver Informações Detalhadas"):
@@ -410,6 +410,7 @@ st.markdown("""
 Desenvolvido para análise inteligente de dados | 2025<br>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
