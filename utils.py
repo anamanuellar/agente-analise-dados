@@ -95,29 +95,42 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         categorical_cols = df.select_dtypes(include=["object"]).columns
         
-        # Análise de correlações se houver colunas numéricas
+        # Análise de correlações se houver colunas numéricas - CORRIGIDO
         correlation_summary = ""
         if len(numeric_cols) >= 2:
-            corr_matrix = df[numeric_cols].corr()
-            high_corr = []
-            for i in range(len(corr_matrix.columns)):
-                for j in range(i+1, len(corr_matrix.columns)):
-                    corr_val = corr_matrix.iloc[i, j]
-                    if not np.isnan(corr_val) and abs(corr_val) > 0.5:
-                        high_corr.append(f"{corr_matrix.columns[i]} ↔ {corr_matrix.columns[j]}: {corr_val:.3f}")
-            correlation_summary = f"Correlações significativas encontradas: {len(high_corr)} pares com |r| > 0.5"
+            try:
+                corr_matrix = df[numeric_cols].corr()
+                high_corr = []
+                for i in range(len(corr_matrix.columns)):
+                    for j in range(i+1, len(corr_matrix.columns)):
+                        corr_val = corr_matrix.iloc[i, j]
+                        if not np.isnan(corr_val) and abs(corr_val) > 0.5:
+                            high_corr.append(f"{corr_matrix.columns[i]} ↔ {corr_matrix.columns[j]}: {corr_val:.3f}")
+                correlation_summary = f"Correlações significativas encontradas: {len(high_corr)} pares com |r| > 0.5"
+            except:
+                correlation_summary = "Correlações: análise requer limpeza de dados"
+        else:
+            correlation_summary = "Correlações: insuficientes colunas numéricas"
         
-        # Análise de distribuições
+        # Análise de distribuições - CORRIGIDO
         distribution_summary = ""
         if len(numeric_cols) > 0:
             skew_analysis = []
             for col in numeric_cols[:5]:  # Primeiras 5 colunas
-                skewness = df[col].skew()
-                if abs(skewness) > 1:
-                    skew_analysis.append(f"{col}: assimetria alta ({skewness:.2f})")
-                elif abs(skewness) > 0.5:
-                    skew_analysis.append(f"{col}: assimetria moderada ({skewness:.2f})")
-            distribution_summary = f"Distribuições: {'; '.join(skew_analysis) if skew_analysis else 'distribuições aproximadamente normais'}"
+                try:
+                    skewness = df[col].skew()
+                    if not np.isnan(skewness) and np.isfinite(skewness):
+                        if abs(skewness) > 1:
+                            skew_analysis.append(f"{col}: assimetria alta ({skewness:.2f})")
+                        elif abs(skewness) > 0.5:
+                            skew_analysis.append(f"{col}: assimetria moderada ({skewness:.2f})")
+                except:
+                    continue
+            
+            if skew_analysis:
+                distribution_summary = f"Distribuições: {'; '.join(skew_analysis)}"
+            else:
+                distribution_summary = "Distribuições: aproximadamente normais"
         
         # Análise de qualidade detalhada
         missing_analysis = []
@@ -170,6 +183,30 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         - Variabilidade: CV médio = {variability_text}
 
         FORNEÇA UMA ANÁLISE ESTRUTURADA E TÉCNICA:
+
+        ## IDENTIFICAÇÃO DO DOMÍNIO
+        Com base nos nomes das colunas, distribuições e padrões, identifique especificamente o tipo de dataset (ex: transações financeiras, dados de marketing, logs de sistema, etc.) e justifique sua conclusão.
+
+        ## AVALIAÇÃO TÉCNICA DE QUALIDADE
+        Avalie objetivamente: completude, consistência, outliers potenciais, balanceamento (se aplicável). Use números específicos.
+
+        ## CARACTERÍSTICAS ANALÍTICAS PRINCIPAIS  
+        - [Característica 1: padrão específico identificado com evidências]
+        - [Característica 2: distribuição ou correlação relevante]
+        - [Característica 3: aspecto de qualidade ou estrutura importante]
+
+        ## ANÁLISES PRIORITÁRIAS RECOMENDADAS
+        - [Análise 1: técnica específica e por que é crítica para este dataset]
+        - [Análise 2: método estatístico recomendado e valor esperado]
+        - [Análise 3: exploração direcionada baseada nos padrões identificados]
+
+        ## HIPÓTESES E INSIGHTS POTENCIAIS
+        - [Hipótese 1: baseada em evidências dos dados observados]
+        - [Hipótese 2: padrão ou anomalia que merece investigação]
+        - [Hipótese 3: oportunidade de descoberta específica]
+
+        Seja TÉCNICO, ESPECÍFICO e baseado em EVIDÊNCIAS dos dados mostrados.
+        """
 
         ## IDENTIFICAÇÃO DO DOMÍNIO
         Com base nos nomes das colunas, distribuições e padrões, identifique especificamente o tipo de dataset (ex: transações financeiras, dados de marketing, logs de sistema, etc.) e justifique sua conclusão.
