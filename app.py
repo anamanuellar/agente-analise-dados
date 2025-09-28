@@ -24,6 +24,14 @@ from utils import (
     get_adaptive_suggestions
 )
 
+if 'hybrid_agent' not in st.session_state:
+    agent = initialize_hybrid_agent()
+    if agent is None:
+        st.stop()  # Para a execução se não conseguir configurar
+    st.session_state.hybrid_agent = agent
+else:
+    agent = st.session_state.hybrid_agent
+
 # Configuração da página
 st.set_page_config(
     page_title="🤖 Agente Híbrido - Gemini + Funções Robustas",
@@ -144,12 +152,13 @@ st.session_state.contamination_rate = st.sidebar.slider(
 # === LÓGICA PRINCIPAL ===
 
 if uploaded_file is not None:
-    try:
-        df = pd.read_csv(uploaded_file)
-        st.success("✅ Dataset carregado com sucesso!")
-        
-        st.subheader("📊 Preview do Dataset")
-        st.dataframe(df.head())
+    df = pd.read_csv(uploaded_file)
+    agent = st.session_state.hybrid_agent
+    
+    # Análise inicial
+    with st.spinner("Analisando dataset..."):
+        initial_analysis = agent.analyze_dataset_initially(df)
+        st.write("Dataset analisado com sucesso!")
 
         # === ANÁLISE INICIAL COM GEMINI (SE DISPONÍVEL) ===
         if gemini_available and 'initial_analysis_done' not in st.session_state:
@@ -658,4 +667,5 @@ st.markdown("""
 Desenvolvido para o <strong>Desafio I2A2 Academy</strong> | Setembro 2025<br>
 </div>
 """, unsafe_allow_html=True)
+
 
