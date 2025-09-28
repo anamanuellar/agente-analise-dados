@@ -5,8 +5,7 @@ import io
 import base64
 import google.generativeai as genai
 
-# Importar do utils_hybrid.py
-from utils_hybrid import (
+from utils import (
     HybridGeminiAgent,
     add_to_memory,
     get_memory_summary,
@@ -659,3 +658,4 @@ st.markdown("""
 Desenvolvido para o <strong>Desafio I2A2 Academy</strong> | Setembro 2025<br>
 </div>
 """, unsafe_allow_html=True)
+
