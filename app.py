@@ -7,6 +7,8 @@ import google.generativeai as genai
 
 from utils import (
     HybridGeminiAgent,
+    initialize_hybrid_agent,
+    verificar_secrets,
     add_to_memory,
     get_memory_summary,
     get_dataset_info,
@@ -23,14 +25,6 @@ from utils import (
     interpret_question,
     get_adaptive_suggestions
 )
-
-if 'hybrid_agent' not in st.session_state:
-    agent = initialize_hybrid_agent()
-    if agent is None:
-        st.stop()  # Para a execução se não conseguir configurar
-    st.session_state.hybrid_agent = agent
-else:
-    agent = st.session_state.hybrid_agent
 
 # Configuração da página
 st.set_page_config(
@@ -70,10 +64,18 @@ def setup_gemini():
 # Inicializar sistema híbrido
 gemini_available, gemini_key = setup_gemini()
 
+# Inicializar agente híbrido
 if 'hybrid_agent' not in st.session_state:
-    st.session_state.hybrid_agent = HybridGeminiAgent()
-    if gemini_available and gemini_key:
-        st.session_state.hybrid_agent.configure_gemini(gemini_key)
+    agent = initialize_hybrid_agent()
+    if agent is None:
+        st.stop()  # Para a execução se não conseguir configurar
+    st.session_state.hybrid_agent = agent
+else:
+    agent = st.session_state.hybrid_agent
+
+# Configurar Gemini se disponível
+if gemini_available and gemini_key:
+    st.session_state.hybrid_agent.configure_gemini(gemini_key)
 
 # Inicializar memória do agente
 if 'agent_memory' not in st.session_state:
@@ -149,17 +151,27 @@ st.session_state.contamination_rate = st.sidebar.slider(
     "Taxa de contaminação para outliers:", 0.01, 0.20, st.session_state.contamination_rate
 )
 
+# Debug Gemini
+if st.sidebar.button("🔧 Debug Gemini"):
+    has_secrets, message = verificar_secrets()
+    st.sidebar.write(message)
+    
+    if has_secrets:
+        agent = st.session_state.hybrid_agent
+        is_configured, status = agent.check_configuration()
+        st.sidebar.write(f"Status: {status}")
+        
+        if is_configured:
+            response = agent._call_gemini("Teste rápido")
+            st.sidebar.success(f"Funcionando: {response[:50]}...")
+
 # === LÓGICA PRINCIPAL ===
 
 if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-    agent = st.session_state.hybrid_agent
-    
-    # Análise inicial
-    with st.spinner("Analisando dataset..."):
-        initial_analysis = agent.analyze_dataset_initially(df)
-        st.write("Dataset analisado com sucesso!")
-
+    try:
+        df = pd.read_csv(uploaded_file)
+        agent = st.session_state.hybrid_agent
+        
         # === ANÁLISE INICIAL COM GEMINI (SE DISPONÍVEL) ===
         if gemini_available and 'initial_analysis_done' not in st.session_state:
             with st.spinner("🧠 Agente híbrido analisando dataset com Gemini..."):
@@ -583,10 +595,10 @@ if uploaded_file is not None:
                         df, st.session_state.agent_memory
                     )
                     st.markdown(executive_conclusions)
-    
-        except Exception as e:
-            st.error(f"❌ Erro ao processar o dataset: {str(e)}")
-            st.code(str(e))
+        
+    except Exception as e:
+        st.error(f"❌ Erro ao processar o dataset: {str(e)}")
+        st.code(str(e))
 
 else:
     # === PÁGINA INICIAL ===
@@ -667,6 +679,3 @@ st.markdown("""
 Desenvolvido para o <strong>Desafio I2A2 Academy</strong> | Setembro 2025<br>
 </div>
 """, unsafe_allow_html=True)
-
-
-
