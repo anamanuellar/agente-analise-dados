@@ -1,3 +1,4 @@
+# utils.py - Versão com indentação corrigida
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -277,6 +278,11 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
     def process_user_query(self, user_query: str, df: pd.DataFrame) -> Tuple[str, Dict]:
         """Processa query do usuário usando Gemini"""
         
+        # Verificar se a pergunta já foi feita recentemente
+        recent_queries = [conv['content'] for conv in self.conversation_history[-3:] if conv['role'] == 'user']
+        if user_query in recent_queries:
+            return "Esta pergunta já foi respondida recentemente. Verifique as análises anteriores ou reformule sua pergunta para obter novos insights.", None
+        
         self.conversation_history.append({
             "role": "user",
             "content": user_query,
@@ -452,13 +458,18 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         
         visualization_type = plan.get("visualization_type")
         columns = plan.get("columns_to_use")
+        analysis_type = plan.get("analysis_type")
+        
+        # Verificar se é análise de correlação e forçar código específico
+        if analysis_type == "correlation_matrix" or visualization_type == "heatmap":
+            return self._create_correlation_heatmap(df, columns)
         
         system_context = """Você é um especialista em visualização de dados com Python."""
         
         prompt = f"""
         **Plano de Visualização:**
         - Tipo de Gráfico: {visualization_type}
-        - Colunas: {columns}
+        - Colunas: {columns[:5] if len(columns) > 5 else columns}  # Limitar para evitar erro
 
         **Sua Tarefa:**
         Gere código Python para criar este gráfico:
@@ -502,6 +513,40 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
             st.error(f"Erro ao gerar visualização: {e}")
             st.code(code_to_execute, language="python")
             return {"status": "error", "error_message": str(e), "code_executed": code_to_execute}
+    
+    def _create_correlation_heatmap(self, df: pd.DataFrame, columns: List[str]) -> Dict:
+        """Cria heatmap de correlação de forma robusta"""
+        try:
+            # Selecionar apenas colunas numéricas
+            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            
+            # Limitar número de colunas para performance
+            if len(numeric_cols) > 20:
+                numeric_cols = numeric_cols[:20]
+            
+            # Calcular matriz de correlação
+            corr_matrix = df[numeric_cols].corr()
+            
+            # Criar figura
+            fig, ax = plt.subplots(figsize=(12, 10))
+            
+            # Criar heatmap
+            if len(numeric_cols) > 10:
+                # Para muitas variáveis, não mostrar anotações
+                sns.heatmap(corr_matrix, cmap='RdBu_r', center=0, 
+                           square=True, ax=ax, cbar_kws={"shrink": .8})
+            else:
+                # Para poucas variáveis, mostrar anotações
+                sns.heatmap(corr_matrix, annot=True, cmap='RdBu_r', center=0, 
+                           square=True, fmt='.2f', ax=ax, cbar_kws={"shrink": .8})
+            
+            ax.set_title('Matriz de Correlação entre Variáveis Numéricas', fontsize=14, pad=20)
+            plt.tight_layout()
+            
+            return {"status": "success", "figure": fig, "code_executed": "Heatmap de correlação gerado automaticamente"}
+            
+        except Exception as e:
+            return {"status": "error", "error_message": str(e), "code_executed": "Erro na geração automática do heatmap"}
 
     # Métodos auxiliares
     def _extract_robust_section(self, text: str, start_markers: List[str], end_markers: List[str]) -> str:
@@ -931,4 +976,3 @@ def get_adaptive_suggestions(df):
             "Mostre a distribuição da coluna principal",
             "Qual a memória do agente?"
         ]
-
