@@ -126,6 +126,16 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
             if missing_pct > 0:
                 missing_analysis.append(f"{col}: {missing_pct:.1f}% faltante")
         
+        # Calcular variabilidade com tratamento de erro
+        variability_text = "N/A"
+        if len(numeric_cols) > 0:
+            try:
+                cv_mean = (df[numeric_cols].std() / df[numeric_cols].mean()).mean()
+                if not np.isnan(cv_mean) and np.isfinite(cv_mean):
+                    variability_text = f"{cv_mean:.3f}"
+            except:
+                variability_text = "N/A"
+        
         system_context = """Você é um Senior Data Scientist com 15+ anos de experiência em análise exploratória de dados. 
         Sua especialidade é identificar padrões, anomalias e oportunidades de insight em datasets complexos.
         Forneça análises TÉCNICAS, ESPECÍFICAS e QUANTITATIVAS. Evite respostas genéricas."""
@@ -157,15 +167,6 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         🔍 QUALIDADE DOS DADOS:
         - Valores faltantes: {'; '.join(missing_analysis[:10]) if missing_analysis else 'Dataset completo'}
         - Duplicatas: {df.duplicated().sum():,} registros
-        # Calcular primeiro, depois formatar:
-        variability_text = "N/A"
-        if len(numeric_cols) > 0:
-            try:
-                cv_mean = (df[numeric_cols].std() / df[numeric_cols].mean()).mean()
-                if not np.isnan(cv_mean) and np.isfinite(cv_mean):
-                    variability_text = f"{cv_mean:.3f}"
-            except:
-                variability_text = "N/A"
         - Variabilidade: CV médio = {variability_text}
 
         FORNEÇA UMA ANÁLISE ESTRUTURADA E TÉCNICA:
@@ -867,4 +868,3 @@ def get_adaptive_suggestions(df):
             "Mostre a distribuição da coluna principal",
             "Qual a memória do agente?"
         ]
-
