@@ -412,9 +412,10 @@ st.markdown("""
 <div style='text-align: center; color: #666; font-size: 14px;'>
 🤖 <strong>Agente Autônomo de Análise de Dados</strong><br>
 🧠 Powered by Google Gemini - IA Generativa<br>
-Desenvolvido para análise inteligente de dados | 2025<br>
+Desenvolvido para análise inteligente de dados por Ana Manuella Ribeiro | 2025<br>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
