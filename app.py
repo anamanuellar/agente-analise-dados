@@ -584,9 +584,9 @@ if uploaded_file is not None:
                     )
                     st.markdown(executive_conclusions)
     
-    except Exception as e:
-        st.error(f"❌ Erro ao processar o dataset: {str(e)}")
-        st.code(str(e))
+        except Exception as e:
+            st.error(f"❌ Erro ao processar o dataset: {str(e)}")
+            st.code(str(e))
 
 else:
     # === PÁGINA INICIAL ===
@@ -667,5 +667,6 @@ st.markdown("""
 Desenvolvido para o <strong>Desafio I2A2 Academy</strong> | Setembro 2025<br>
 </div>
 """, unsafe_allow_html=True)
+
 
 
