@@ -20,17 +20,15 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 class HybridGeminiAgent:
     """
-    Agente Híbrido que combina:
-    - LLM (Gemini) para interpretação e insights
-    - Funções robustas para execução das análises
-    - Interface completa da versão 1
+    Agente Híbrido corrigido para configuração adequada do Gemini
     """
     
-    def __init__(self, model_name="gemini-2.5-flash"):
+    def __init__(self, model_name="gemini-2.5-flash"):  
         self.model_name = model_name
         self.model = None
         self.conversation_history = []
         self.dataset_context = {}
+        self.api_key = None  # Adicionar tracking da API key
         
         # Configurações do Gemini
         self.generation_config = {
@@ -59,27 +57,187 @@ class HybridGeminiAgent:
             }
         ]
     
-    def configure_gemini(self, api_key: str):
-        """Configura o Gemini com a API Key"""
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(
-            self.model_name,
-            safety_settings=self.safety_settings,
-            generation_config=self.generation_config
-        )
+    def configure_gemini(self, api_key=None):
+        """Configura o Gemini com a API Key - VERSÃO CORRIGIDA"""
+        try:
+            # 1. Primeiro, tentar obter a API key de diferentes fontes
+            if api_key:
+                self.api_key = api_key
+            elif hasattr(st, 'secrets') and 'GEMINI_API_KEY' in st.secrets:
+                self.api_key = st.secrets['GEMINI_API_KEY']
+            elif hasattr(st, 'secrets') and 'gemini' in st.secrets and 'api_key' in st.secrets['gemini']:
+                self.api_key = st.secrets['gemini']['api_key']
+            else:
+                st.error("❌ API Key do Gemini não encontrada! Verifique seu arquivo secrets.toml")
+                return False
+            
+            # 2. Configurar o Gemini
+            genai.configure(api_key=self.api_key)
+            
+            # 3. Inicializar o modelo
+            self.model = genai.GenerativeModel(
+                self.model_name,
+                safety_settings=self.safety_settings,
+                generation_config=self.generation_config
+            )
+            
+            # 4. Testar a configuração
+            test_response = self.model.generate_content("Teste de conexão. Responda apenas 'OK'")
+            
+            if test_response and test_response.text:
+                st.success("✅ Gemini configurado com sucesso!")
+                return True
+            else:
+                st.error("❌ Falha no teste de conexão com Gemini")
+                return False
+                
+        except Exception as e:
+            st.error(f"❌ Erro ao configurar Gemini: {str(e)}")
+            self.model = None
+            return False
     
     def _call_gemini(self, prompt: str, system_context: str = "") -> str:
-        """Chama Gemini de forma segura com fallback"""
+        """Chama Gemini de forma segura com fallback - VERSÃO CORRIGIDA"""
+        
+        # Verificar se o modelo está configurado
         if not self.model:
-            return "Gemini não configurado"
-            
+            # Tentar configurar automaticamente
+            if not self.configure_gemini():
+                return "❌ Gemini não configurado. Verifique sua API key em secrets.toml"
+        
         try:
+            # Construir prompt completo
             full_prompt = f"{system_context}\n\n{prompt}" if system_context else prompt
+            
+            # Fazer a chamada
             response = self.model.generate_content(full_prompt)
-            return response.text
+            
+            # Verificar se há resposta válida
+            if response and hasattr(response, 'text') and response.text:
+                return response.text
+            else:
+                return "⚠️ Gemini retornou resposta vazia"
+                
         except Exception as e:
-            st.error(f"Erro no Gemini: {e}")
-            return f"Erro na LLM: {str(e)}"
+            error_msg = str(e)
+            
+            # Tratar erros específicos
+            if "API_KEY_INVALID" in error_msg:
+                return "❌ API Key inválida. Verifique sua chave do Gemini"
+            elif "QUOTA_EXCEEDED" in error_msg:
+                return "⚠️ Cota da API excedida. Tente novamente mais tarde"
+            elif "SAFETY" in error_msg:
+                return "⚠️ Conteúdo bloqueado por questões de segurança"
+            else:
+                st.error(f"Erro no Gemini: {error_msg}")
+                return f"❌ Erro na LLM: {error_msg}"
+    
+    def check_configuration(self):
+        """Verifica se o Gemini está configurado corretamente"""
+        if not self.model:
+            return False, "Modelo não inicializado"
+        
+        if not self.api_key:
+            return False, "API Key não encontrada"
+        
+        try:
+            # Teste simples
+            test_response = self.model.generate_content("Teste")
+            return True, "Configuração OK"
+        except Exception as e:
+            return False, f"Erro na configuração: {str(e)}"
+
+# FUNÇÃO PARA INICIALIZAR O AGENTE NO STREAMLIT
+def initialize_hybrid_agent():
+    """Inicializa o agente híbrido no Streamlit"""
+    
+    # Verificar se já existe na sessão
+    if 'hybrid_agent' not in st.session_state:
+        st.session_state.hybrid_agent = HybridGeminiAgent()
+    
+    # Verificar configuração
+    agent = st.session_state.hybrid_agent
+    is_configured, status = agent.check_configuration()
+    
+    if not is_configured:
+        st.warning(f"⚠️ Configurando Gemini... Status: {status}")
+        
+        # Tentar configurar
+        success = agent.configure_gemini()
+        
+        if not success:
+            st.error("""
+            ❌ **Erro na configuração do Gemini**
+            
+            Verifique se:
+            1. O arquivo `.streamlit/secrets.toml` existe
+            2. Contém sua API key: `GEMINI_API_KEY = "sua_chave_aqui"`
+            3. A chave é válida no Google AI Studio
+            
+            **Como obter a API key:**
+            - Acesse: https://aistudio.google.com/app/apikey
+            - Crie uma nova chave
+            - Adicione ao secrets.toml
+            """)
+            return None
+    
+    return agent
+
+# EXEMPLO DE USO NO STREAMLIT
+def exemplo_uso_streamlit():
+    """Exemplo de como usar no Streamlit"""
+    
+    st.title("🤖 Agente Híbrido com Gemini")
+    
+    # Inicializar agente
+    agent = initialize_hybrid_agent()
+    
+    if agent is None:
+        st.stop()  # Para a execução se não conseguir configurar
+    
+    # Teste de funcionalidade
+    if st.button("🧪 Testar Gemini"):
+        with st.spinner("Testando conexão..."):
+            response = agent._call_gemini("Diga olá e confirme que está funcionando!")
+            st.success(f"✅ Resposta do Gemini: {response}")
+    
+    # Interface principal
+    user_question = st.text_input("💬 Faça uma pergunta:")
+    
+    if user_question:
+        with st.spinner("🤔 Gemini pensando..."):
+            response = agent._call_gemini(
+                user_question,
+                "Você é um assistente de análise de dados. Responda de forma clara e objetiva."
+            )
+            st.write("🤖 **Resposta:**")
+            st.write(response)
+
+# VERIFICAÇÃO DE SECRETS.TOML
+def verificar_secrets():
+    """Função para verificar se os secrets estão configurados"""
+    try:
+        # Método 1: GEMINI_API_KEY diretamente
+        if hasattr(st, 'secrets') and 'GEMINI_API_KEY' in st.secrets:
+            key = st.secrets['GEMINI_API_KEY']
+            if key and len(key) > 30:  # API keys do Google são longas
+                return True, "✅ GEMINI_API_KEY encontrada"
+            else:
+                return False, "❌ GEMINI_API_KEY muito curta ou vazia"
+        
+        # Método 2: gemini.api_key
+        elif hasattr(st, 'secrets') and 'gemini' in st.secrets:
+            if 'api_key' in st.secrets['gemini']:
+                key = st.secrets['gemini']['api_key']
+                if key and len(key) > 30:
+                    return True, "✅ gemini.api_key encontrada"
+                else:
+                    return False, "❌ gemini.api_key muito curta ou vazia"
+        
+        return False, "❌ Nenhuma API key encontrada em secrets.toml"
+        
+    except Exception as e:
+        return False, f"❌ Erro ao verificar secrets: {str(e)}"
     
     def analyze_dataset_initially(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Análise inicial com Gemini + dados estruturados robustos"""
@@ -1027,4 +1185,5 @@ def get_adaptive_suggestions(df):
         "• Qual sua memória de análises?"
     ]
     return suggestions
+
 
