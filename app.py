@@ -134,21 +134,15 @@ if uploaded_file is not None:
         # === PRÉVIA DO DATASET ===
         st.markdown("---")
         st.subheader("👀 Prévia do Dataset")
-        
-        col1, col2 = st.columns([2, 1])
-        
+
+        with col2:
+            st.write(f"• **Arquivo:** {uploaded_file.name}")
+            st.write(f"• **Upload em:** {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                
         with col1:
             st.write("**Primeiras 5 linhas:**")
             st.dataframe(df.head(), use_container_width=True)
         
-        with col2:
-            st.write("**Informações gerais:**")
-            st.write(f"• **Linhas:** {df.shape[0]:,}")
-            st.write(f"• **Colunas:** {df.shape[1]}")
-            st.write(f"• **Memória:** {df.memory_usage(deep=True).sum() / 1024**2:.1f} MB")
-            st.write(f"• **Nulos:** {df.isnull().sum().sum():,}")
-            st.write(f"• **Completude:** {((df.shape[0] * df.shape[1] - df.isnull().sum().sum()) / (df.shape[0] * df.shape[1]) * 100):.1f}%")
-
         # === INFORMAÇÕES DETALHADAS ===
         with st.expander("📋 Ver Informações Detalhadas"):
             dataset_info_text = get_dataset_info(df)
@@ -416,4 +410,5 @@ st.markdown("""
 Desenvolvido para análise inteligente de dados | 2025<br>
 </div>
 """, unsafe_allow_html=True)
+
 
