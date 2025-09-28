@@ -1027,3 +1027,4 @@ def get_adaptive_suggestions(df):
         "• Qual sua memória de análises?"
     ]
     return suggestions
+
