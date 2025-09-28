@@ -7,7 +7,6 @@ from utils import (
     add_to_memory,
     get_memory_summary,
     get_dataset_info,
-    generate_complete_analysis_summary,
     analyze_frequent_values,
     perform_descriptive_analysis,
     plot_distribution,
@@ -147,3 +146,4 @@ if uploaded_file:
 
 else:
     st.info("👆 Faça upload de um CSV para começar a análise.")
+
