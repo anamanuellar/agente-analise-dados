@@ -135,11 +135,11 @@ if uploaded_file is not None:
         st.markdown("---")
         st.subheader("👀 Prévia do Dataset")
 
-        with col2:
+        # Bloco 1: Informações gerais
             st.write(f"• **Arquivo:** {uploaded_file.name}")
             st.write(f"• **Upload em:** {datetime.now().strftime('%d/%m/%Y %H:%M')}")
                 
-        with col1:
+        # Bloco 2: Preview do dataset
             st.write("**Primeiras 5 linhas:**")
             st.dataframe(df.head(), use_container_width=True)
         
@@ -410,5 +410,6 @@ st.markdown("""
 Desenvolvido para análise inteligente de dados | 2025<br>
 </div>
 """, unsafe_allow_html=True)
+
 
 
