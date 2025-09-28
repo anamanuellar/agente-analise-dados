@@ -1,4 +1,3 @@
-# Importações corrigidas
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,7 +15,7 @@ import streamlit as st
 import google.generativeai as genai
 from typing import Dict, List, Any, Tuple
 
-# CORREÇÃO: Importação específica do PdfPages
+# Importação do PdfPages com verificação
 try:
     from matplotlib.backends.backend_pdf import PdfPages
     PDF_AVAILABLE = True
@@ -26,7 +25,7 @@ except ImportError:
 class GeminiAgent:
     """Agente que USA Google Gemini como cérebro do sistema"""
     
-    def __init__(self, model_name="gemini-2.0-flash-exp"):
+    def __init__(self, model_name="gemini-2.5-flash"):
         self.model_name = model_name
         self.model = None
         self.conversation_history = []
@@ -99,11 +98,10 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
     def analyze_dataset_initially(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Análise inicial PROFUNDA e analítica do dataset usando Gemini"""
         
-        # Primeiro, calcular estatísticas avançadas para o prompt
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         categorical_cols = df.select_dtypes(include=["object"]).columns
         
-        # Análise de correlações se houver colunas numéricas
+        # Análise de correlações
         correlation_summary = ""
         if len(numeric_cols) >= 2:
             try:
@@ -124,7 +122,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         distribution_summary = ""
         if len(numeric_cols) > 0:
             skew_analysis = []
-            for col in numeric_cols[:5]:  # Primeiras 5 colunas
+            for col in numeric_cols[:5]:
                 try:
                     skewness = df[col].skew()
                     if not np.isnan(skewness) and np.isfinite(skewness):
@@ -147,7 +145,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
             if missing_pct > 0:
                 missing_analysis.append(f"{col}: {missing_pct:.1f}% faltante")
         
-        # Calcular variabilidade com tratamento de erro
+        # Calcular variabilidade
         variability_text = "N/A"
         if len(numeric_cols) > 0:
             try:
@@ -161,12 +159,11 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         Sua especialidade é identificar padrões, anomalias e oportunidades de insight em datasets complexos.
         Forneça análises TÉCNICAS, ESPECÍFICAS e QUANTITATIVAS. Evite respostas genéricas."""
         
-        # Preparar estatísticas básicas
+        # Preparar variáveis para o prompt
         stats_text = "Sem colunas numéricas para análise estatística"
         if len(numeric_cols) > 0:
             stats_text = df.describe().to_string()
         
-        # Preparar valores faltantes
         missing_text = "Dataset completo"
         if missing_analysis:
             missing_text = '; '.join(missing_analysis[:10])
@@ -203,10 +200,10 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         FORNEÇA UMA ANÁLISE ESTRUTURADA E TÉCNICA:
 
         ## IDENTIFICAÇÃO DO DOMÍNIO
-        Com base nos nomes das colunas, distribuições e padrões, identifique especificamente o tipo de dataset (ex: transações financeiras, dados de marketing, logs de sistema, etc.) e justifique sua conclusão.
+        Com base nos nomes das colunas, distribuições e padrões, identifique especificamente o tipo de dataset.
 
         ## AVALIAÇÃO TÉCNICA DE QUALIDADE
-        Avalie objetivamente: completude, consistência, outliers potenciais, balanceamento (se aplicável). Use números específicos.
+        Avalie objetivamente: completude, consistência, outliers potenciais, balanceamento.
 
         ## CARACTERÍSTICAS ANALÍTICAS PRINCIPAIS  
         - [Característica 1: padrão específico identificado com evidências]
@@ -278,7 +275,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
             }
     
     def process_user_query(self, user_query: str, df: pd.DataFrame) -> Tuple[str, Dict]:
-        """Processa query do usuário usando Gemini para interpretação e execução"""
+        """Processa query do usuário usando Gemini"""
         
         self.conversation_history.append({
             "role": "user",
@@ -331,7 +328,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         - Colunas categóricas: {list(df.select_dtypes(include=["object"]).columns)}
 
         **Sua Tarefa:**
-        Crie um plano de análise em formato JSON para responder à pergunta do usuário. O JSON deve ter a seguinte estrutura:
+        Crie um plano de análise em formato JSON:
         {{
             "analysis_type": "[tipo_da_analise]",
             "columns_to_use": ["coluna1", "coluna2"],
@@ -340,24 +337,15 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         }}
 
         **Tipos de Análise Válidos:**
-        - `descriptive_statistics`: Para perguntas sobre média, mediana, desvio padrão, etc.
-        - `correlation_matrix`: Para perguntas sobre correlação entre variáveis.
-        - `distribution_plot`: Para perguntas sobre a distribuição de uma variável (histograma).
-        - `outlier_detection`: Para perguntas sobre outliers ou valores atípicos.
-        - `clustering`: Para perguntas sobre agrupamentos ou segmentação.
-        - `frequency_analysis`: Para perguntas sobre valores mais/menos frequentes.
-        - `temporal_analysis`: Para perguntas sobre padrões temporais.
-        - `balance_analysis`: Para perguntas sobre balanceamento de classes.
-        - `general_query`: Para perguntas gerais que não se encaixam nas categorias acima.
-
-        **Tipos de Gráfico Válidos:**
-        - `histogram`: Para `distribution_plot`.
-        - `heatmap`: Para `correlation_matrix`.
-        - `boxplot`: Para `outlier_detection`.
-        - `scatterplot`: Para `clustering`.
-        - `pie_chart`: Para `balance_analysis`.
-        - `line_chart`: Para `temporal_analysis`.
-        - `bar_chart`: Para `frequency_analysis`.
+        - `descriptive_statistics`: estatísticas básicas
+        - `correlation_matrix`: correlações
+        - `distribution_plot`: distribuição de variável
+        - `outlier_detection`: outliers
+        - `clustering`: agrupamentos
+        - `frequency_analysis`: valores frequentes
+        - `temporal_analysis`: padrões temporais
+        - `balance_analysis`: balanceamento
+        - `general_query`: perguntas gerais
 
         **Sua Resposta (apenas o JSON):**
         """
@@ -378,12 +366,12 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         return plan
 
     def _execute_gemini_analysis_plan(self, plan: Dict, df: pd.DataFrame) -> Dict:
-        """Executa o plano de análise gerando e executando código com Gemini."""
+        """Executa o plano de análise"""
         
         analysis_type = plan.get("analysis_type", "general_query")
         columns = plan.get("columns_to_use", [])
         
-        system_context = """Você é um especialista em Python para análise de dados. Gere código Python para realizar a análise solicitada. O código deve ser completo, funcional e imprimir os resultados em formato de texto."""
+        system_context = """Você é um especialista em Python para análise de dados. Gere código Python para realizar a análise solicitada."""
         
         prompt = f"""
         **Plano de Análise:**
@@ -391,13 +379,10 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         - Colunas: {columns}
 
         **Sua Tarefa:**
-        Gere o código Python completo para realizar esta análise no DataFrame `df`. O código deve:
-        1. Usar as bibliotecas `pandas`, `numpy`, `matplotlib`, `seaborn`, `sklearn`.
-        2. Realizar a análise solicitada nas colunas especificadas.
-        3. Imprimir os resultados da análise em formato de texto claro e informativo.
-        4. Não gere o código para criar gráficos, apenas a análise textual.
-        5. Se a análise for de clustering, use uma amostra de no máximo 5000 linhas para performance.
-        6. Se a análise for de outliers, use IsolationForest, IQR e Z-score.
+        Gere código Python completo para esta análise no DataFrame `df`:
+        1. Use pandas, numpy, sklearn
+        2. Imprima os resultados em formato claro
+        3. Não crie gráficos, apenas análise textual
 
         **Seu Código Python (apenas o código):**
         """
@@ -431,7 +416,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
             return {"status": "error", "error_message": str(e), "code_executed": code_to_execute}
 
     def _gemini_generate_final_response(self, user_query: str, plan: Dict, results: Dict, df: pd.DataFrame) -> str:
-        """Gera a resposta final em linguagem natural com base nos resultados."""
+        """Gera a resposta final"""
         
         system_context = """Você é um especialista em análise de dados apresentando resultados para um cliente. Seja claro, conciso e foque em insights de negócio."""
         
@@ -448,11 +433,11 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         ```
 
         **Sua Tarefa:**
-        Com base nos resultados, escreva uma resposta clara e informativa para o cliente. A resposta deve:
-        1. Explicar o que foi analisado.
-        2. Resumir os principais resultados.
-        3. Fornecer insights práticos e recomendações.
-        4. Usar linguagem acessível, evitando jargões técnicos excessivos.
+        Escreva uma resposta clara:
+        1. Explique o que foi analisado
+        2. Resumir os principais resultados
+        3. Forneça insights práticos
+        4. Use linguagem acessível
         
         **Sua Resposta:**
         """
@@ -460,7 +445,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         return self._call_gemini(prompt, system_context)
 
     def _create_visualization_if_needed(self, plan: Dict, df: pd.DataFrame, analysis_results: Dict) -> Dict:
-        """VERSÃO CORRIGIDA - Gera visualização funcionalmente"""
+        """Gera visualização se necessário"""
         
         if not plan.get("requires_visualization"): 
             return None
@@ -468,16 +453,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         visualization_type = plan.get("visualization_type")
         columns = plan.get("columns_to_use")
         
-        system_context = """Você é um especialista em visualização de dados com Python. 
-        Gere código Python completo e funcional para criar o gráfico solicitado.
-        O código deve:
-        1. Ser sintaticamente correto
-        2. Criar uma figura usando plt.subplots()
-        3. Usar matplotlib/seaborn para o gráfico
-        4. Incluir título e labels
-        5. Armazenar a figura na variável 'generated_fig'
-        6. Usar plt.tight_layout()
-        """
+        system_context = """Você é um especialista em visualização de dados com Python."""
         
         prompt = f"""
         **Plano de Visualização:**
@@ -485,20 +461,19 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         - Colunas: {columns}
 
         **Sua Tarefa:**
-        Gere código Python completo para criar este gráfico. O código deve:
+        Gere código Python para criar este gráfico:
 
-        1. Criar uma figura: `generated_fig, ax = plt.subplots(figsize=(10, 6))`
-        2. Gerar o gráfico solicitado no eixo `ax`
+        1. Criar: `generated_fig, ax = plt.subplots(figsize=(10, 6))`
+        2. Gerar o gráfico no eixo `ax`
         3. Incluir título e rótulos
         4. Terminar com `plt.tight_layout()`
         5. A figura deve estar na variável `generated_fig`
 
-        **Seu Código Python (apenas o código, sem comentários):**
+        **Seu Código Python:**
         """
         
         code_to_execute = self._call_gemini(prompt, system_context)
         
-        # Limpar o código
         code_to_execute = code_to_execute.strip().replace("```python", "").replace("```", "").strip()
         
         try:
@@ -530,7 +505,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
 
     # Métodos auxiliares
     def _extract_robust_section(self, text: str, start_markers: List[str], end_markers: List[str]) -> str:
-        """Extração robusta de seções com múltiplos marcadores"""
+        """Extração robusta de seções"""
         for start_marker in start_markers:
             try:
                 start_idx = text.upper().find(start_marker.upper())
@@ -571,7 +546,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         return items[:5]
     
     def _generate_fallback_domain_analysis(self, df: pd.DataFrame) -> str:
-        """Gera análise de domínio robusta baseada nas colunas"""
+        """Gera análise de domínio robusta"""
         cols_lower = [col.lower() for col in df.columns]
         
         if any(word in ' '.join(cols_lower) for word in ['transaction', 'amount', 'fraud', 'class']):
@@ -602,7 +577,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         return f"Qualidade {quality_score}: {completeness:.1f}% completo, {duplicates:,} duplicatas, {df.shape[0]:,} registros válidos para análise"
     
     def _generate_fallback_characteristics(self, df: pd.DataFrame) -> List[str]:
-        """Gera características robustas baseadas na análise dos dados"""
+        """Gera características robustas"""
         characteristics = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
@@ -648,7 +623,7 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         return characteristics[:3]
     
     def _generate_fallback_recommendations(self, df: pd.DataFrame) -> List[str]:
-        """Gera recomendações robustas baseadas na estrutura dos dados"""
+        """Gera recomendações robustas"""
         recommendations = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
@@ -731,7 +706,6 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
                     summary_text += f"**Pergunta do Usuário:** {query}\n"
                     summary_text += f"**Plano de Análise:** {json.dumps(plan, indent=2)}\n"
                     
-                    # Verificar se text_output existe nos resultados
                     text_output = results.get("text_output", "Resultados não disponíveis")
                     summary_text += f"**Resultados da Execução:**\n```\n{text_output}\n```\n"
                     summary_text += f"**Resposta Final do Gemini:**\n{response}\n"
@@ -844,18 +818,15 @@ def generate_pdf_report(df, agent: GeminiAgent):
                         
                         content = ""
                         if entry["type"] == "initial_analysis":
-                            # Verificar se os dados existem
                             data = entry.get("data", {})
                             content = data.get("full_response", "Análise inicial não disponível")
                         elif entry["type"] == "user_query":
-                            # Verificar se os dados existem
                             data = entry.get("data", {})
                             query = data.get("query", "Pergunta não disponível")
                             response = data.get("response", "Resposta não disponível")
                             
                             content = f"Pergunta: {query}\n\nResposta Final:\n{response}"
                         
-                        # Limitar o conteúdo para caber na página
                         content = content[:1500] if content else "Conteúdo não disponível"
                         
                         ax.text(0.05, 0.90, content, ha="left", va="top", fontsize=8)
@@ -877,11 +848,9 @@ def generate_pdf_report(df, agent: GeminiAgent):
                                     pdf.savefig(fig_vis, bbox_inches="tight")
                                     plt.close(fig_vis)
                             except Exception:
-                                # Se falhar ao adicionar gráfico, continuar sem ele
                                 continue
                                 
                     except Exception as e:
-                        # Se falhar em uma análise específica, criar página de erro
                         fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
                         ax = fig.add_subplot(111)
                         ax.text(0.05, 0.95, f"Erro na Análise {i+1}", ha="left", va="top", fontsize=14, fontweight="bold")
@@ -892,7 +861,6 @@ def generate_pdf_report(df, agent: GeminiAgent):
                         pdf.savefig(fig, bbox_inches="tight")
                         plt.close(fig)
             else:
-                # Se não há análises, criar página indicando isso
                 fig = plt.figure(figsize=(8.27, 11.69), dpi=100)
                 ax = fig.add_subplot(111)
                 ax.text(0.5, 0.5, "Nenhuma análise realizada ainda.\nFaça algumas perguntas ao agente primeiro.", 
@@ -906,18 +874,15 @@ def generate_pdf_report(df, agent: GeminiAgent):
         pdf_buffer.seek(0)
         return pdf_buffer.getvalue()
         
-            except Exception as e:
-        # Fallback: criar um relatório de texto simples
+    except Exception as e:
         st.error(f"Erro ao gerar PDF: {str(e)}")
         return generate_text_report_fallback(df, agent)
 
 def generate_text_report_fallback(df, agent: GeminiAgent):
     """Fallback: gera relatório em texto quando PDF falha"""
     try:
-        # Usar o método existente get_full_memory_summary
         report_content = agent.get_full_memory_summary()
         
-        # Adicionar informações do dataset
         dataset_info = get_dataset_info(df)
         full_report = f"""
 RELATÓRIO COMPLETO DE ANÁLISE DE DADOS
@@ -928,11 +893,9 @@ Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}
 {report_content}
 """
         
-        # Converter para bytes
         return full_report.encode('utf-8')
         
     except Exception as e:
-        # Último fallback
         simple_report = f"""
 RELATÓRIO DE ANÁLISE - ERRO NA GERAÇÃO
 Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}
