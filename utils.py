@@ -311,9 +311,14 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
         completeness = ((df.shape[0] * df.shape[1] - df.isnull().sum().sum()) / (df.shape[0] * df.shape[1]) * 100)
         duplicates = df.duplicated().sum()
         
-        quality_score = "EXCELENTE" if completeness > 95 and duplicates == 0 else \
-                       "BOA" if completeness > 90 else \
-                       "MODERADA" if completeness > 80 else "BAIXA"
+        if completeness > 95 and duplicates == 0:
+            quality_score = "EXCELENTE"
+        elif completeness > 90:
+            quality_score = "BOA"
+        elif completeness > 80:
+            quality_score = "MODERADA"
+        else:
+            quality_score = "BAIXA"
         
         return f"Qualidade {quality_score}: {completeness:.1f}% completo, {duplicates:,} duplicatas, {df.shape[0]:,} registros válidos para análise"
     
@@ -327,16 +332,33 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
             highly_skewed = sum(abs(skew_analysis) > 1)
             characteristics.append(f"Distribuições: {highly_skewed} de {len(numeric_cols)} variáveis numéricas apresentam assimetria alta")
             
-            # Análise de variabilidade
-            cv = (df[numeric_cols].std() / df[numeric_cols].mean()).mean()
-            if cv > 1:
-                characteristics.append(f"Variabilidade alta: coeficiente de variação médio de {cv:.2f} indica dados heterogêneos")
+            # Análise de variabilidade - CORRIGIDO
+            try:
+                cv_values = df[numeric_cols].std() / df[numeric_cols].mean()
+                cv_mean = cv_values.mean()
+                if not np.isnan(cv_mean) and np.isfinite(cv_mean):
+                    if cv_mean > 1:
+                        characteristics.append(f"Variabilidade alta: coeficiente de variação médio de {cv_mean:.2f} indica dados heterogêneos")
+                    else:
+                        characteristics.append(f"Variabilidade moderada: coeficiente de variação médio de {cv_mean:.2f}")
+                else:
+                    characteristics.append("Variabilidade: não calculável devido a valores zero ou inválidos")
+            except:
+                characteristics.append("Análise de variabilidade: dados requerem pré-processamento")
             
             # Análise de correlações
             if len(numeric_cols) >= 2:
-                corr_matrix = df[numeric_cols].corr()
-                high_corr_count = sum(sum(abs(corr_matrix.values) > 0.7) - len(corr_matrix)) // 2
-                characteristics.append(f"Estrutura de correlação: {high_corr_count} pares de variáveis altamente correlacionadas")
+                try:
+                    corr_matrix = df[numeric_cols].corr()
+                    # Contar correlações altas (excluindo diagonal)
+                    high_corr_count = 0
+                    for i in range(len(corr_matrix.columns)):
+                        for j in range(i+1, len(corr_matrix.columns)):
+                            if abs(corr_matrix.iloc[i, j]) > 0.7 and not np.isnan(corr_matrix.iloc[i, j]):
+                                high_corr_count += 1
+                    characteristics.append(f"Estrutura de correlação: {high_corr_count} pares de variáveis altamente correlacionadas")
+                except:
+                    characteristics.append("Estrutura de correlação: análise requer limpeza de dados")
         
         # Análise categórica
         categorical_cols = df.select_dtypes(include=['object']).columns
@@ -345,7 +367,10 @@ As funcionalidades básicas de análise continuam funcionando normalmente.
             if high_cardinality > 0:
                 characteristics.append(f"Cardinalidade: {high_cardinality} variáveis categóricas com alta diversidade (>50 valores únicos)")
         
-        return characteristics[:3] if characteristics else ["Dataset com estrutura padrão para análise exploratória"]
+        if not characteristics:
+            characteristics = ["Dataset com estrutura padrão para análise exploratória"]
+        
+        return characteristics[:3]
     
     def _generate_fallback_recommendations(self, df: pd.DataFrame) -> List[str]:
         """Gera recomendações robustas baseadas na estrutura dos dados"""
