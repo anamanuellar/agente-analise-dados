@@ -130,7 +130,30 @@ if st.sidebar.button("🗑️ Limpar Memória"):
 if uploaded_file is not None:
     try:
         df = pd.read_csv(uploaded_file)
+
+        # === PRÉVIA DO DATASET ===
+        st.markdown("---")
+        st.subheader("👀 Prévia do Dataset")
         
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.write("**Primeiras 5 linhas:**")
+            st.dataframe(df.head(), use_container_width=True)
+        
+        with col2:
+            st.write("**Informações gerais:**")
+            st.write(f"• **Linhas:** {df.shape[0]:,}")
+            st.write(f"• **Colunas:** {df.shape[1]}")
+            st.write(f"• **Memória:** {df.memory_usage(deep=True).sum() / 1024**2:.1f} MB")
+            st.write(f"• **Nulos:** {df.isnull().sum().sum():,}")
+            st.write(f"• **Completude:** {((df.shape[0] * df.shape[1] - df.isnull().sum().sum()) / (df.shape[0] * df.shape[1]) * 100):.1f}%")
+
+        # === INFORMAÇÕES DETALHADAS ===
+        with st.expander("📋 Ver Informações Detalhadas"):
+            dataset_info_text = get_dataset_info(df)
+            st.markdown(dataset_info_text)
+
         # === ANÁLISE INICIAL COM GEMINI ===
         if gemini_configured and 'initial_analysis_done' not in st.session_state:
             with st.spinner("🧠 IA analisando dataset..."):
@@ -165,29 +188,6 @@ if uploaded_file is not None:
             # Mostrar resposta completa em expander
             with st.expander("📄 Ver Análise Completa da IA"):
                 st.markdown(analysis.get('full_response', 'Análise não disponível'))
-
-        # === PRÉVIA DO DATASET ===
-        st.markdown("---")
-        st.subheader("👀 Prévia do Dataset")
-        
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            st.write("**Primeiras 5 linhas:**")
-            st.dataframe(df.head(), use_container_width=True)
-        
-        with col2:
-            st.write("**Informações gerais:**")
-            st.write(f"• **Linhas:** {df.shape[0]:,}")
-            st.write(f"• **Colunas:** {df.shape[1]}")
-            st.write(f"• **Memória:** {df.memory_usage(deep=True).sum() / 1024**2:.1f} MB")
-            st.write(f"• **Nulos:** {df.isnull().sum().sum():,}")
-            st.write(f"• **Completude:** {((df.shape[0] * df.shape[1] - df.isnull().sum().sum()) / (df.shape[0] * df.shape[1]) * 100):.1f}%")
-
-        # === INFORMAÇÕES DETALHADAS ===
-        with st.expander("📋 Ver Informações Detalhadas"):
-            dataset_info_text = get_dataset_info(df)
-            st.markdown(dataset_info_text)
 
         # === CHAT COM IA ===
         st.markdown("---")
@@ -416,3 +416,4 @@ st.markdown("""
 Desenvolvido para análise inteligente de dados | 2025<br>
 </div>
 """, unsafe_allow_html=True)
+
