@@ -4,6 +4,7 @@ import numpy as np
 import io
 import base64
 from datetime import datetime
+import pytz
 
 
 # Importações do novo GeminiAgent
@@ -139,6 +140,8 @@ if uploaded_file is not None:
 
         # Bloco 1: Informações gerais
         st.write(f"• **Arquivo:** {uploaded_file.name}")
+        tz = pytz.timezone("America/Sao_Paulo")
+        now = datetime.now(tz)
         st.write(f"• **Upload em:** {datetime.now().strftime('%d/%m/%Y %H:%M')}")
                 
         # Bloco 2: Preview do dataset
@@ -412,6 +415,7 @@ st.markdown("""
 Desenvolvido para análise inteligente de dados | 2025<br>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
